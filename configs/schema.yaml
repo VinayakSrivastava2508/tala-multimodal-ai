@@ -1,0 +1,118 @@
+# Data schemas for TALA Multimodal AI Strategy project
+# Used by src/validation.py to check DataFrames at load time.
+# Fields marked required: true must be non-null; others may be empty.
+
+schemas:
+
+  social_posts:
+    description: >
+      Brand-owned or brand-tagged posts on Instagram, TikTok, or YouTube.
+      Evidence for brand positioning and campaign intent ONLY.
+    fields:
+      post_id:          { dtype: str,      required: true }
+      brand:            { dtype: str,      required: true }
+      platform:         { dtype: str,      required: true,  values: [instagram, tiktok, youtube] }
+      post_date:        { dtype: date,     required: true }
+      caption:          { dtype: str,      required: false }
+      media_type:       { dtype: str,      required: false, values: [image, video, reel, story, carousel] }
+      hashtags:         { dtype: list_str, required: false }
+      likes:            { dtype: int,      required: false }
+      comments:         { dtype: int,      required: false }
+      views:            { dtype: int,      required: false }
+      url:              { dtype: str,      required: false }
+      image_path:       { dtype: str,      required: false }
+      source_id:        { dtype: str,      required: true }
+      synthetic:        { dtype: bool,     required: true,  default: false }
+
+  creator_posts:
+    description: >
+      Posts by creators / influencers who partner with or organically mention the brand.
+      Evidence for creator strategy, reach, and partnership diversity.
+    fields:
+      post_id:          { dtype: str,      required: true }
+      creator_handle:   { dtype: str,      required: true }
+      platform:         { dtype: str,      required: true,  values: [instagram, tiktok, youtube, other] }
+      brand_mentioned:  { dtype: str,      required: true }
+      post_date:        { dtype: date,     required: true }
+      partnership_type: { dtype: str,      required: false, values: [paid, gifted, organic, ambassador, unknown] }
+      caption:          { dtype: str,      required: false }
+      creator_followers:{ dtype: int,      required: false }
+      creator_tier:     { dtype: str,      required: false, values: [nano, micro, mid, macro, mega] }
+      likes:            { dtype: int,      required: false }
+      comments:         { dtype: int,      required: false }
+      views:            { dtype: int,      required: false }
+      sentiment_label:  { dtype: str,      required: false, values: [positive, neutral, negative, mixed] }
+      url:              { dtype: str,      required: false }
+      source_id:        { dtype: str,      required: true }
+      synthetic:        { dtype: bool,     required: true,  default: false }
+
+  reviews:
+    description: >
+      Customer reviews from Trustpilot, Google, Sitejabber, or similar.
+      Primary evidence for quality, fit, sizing, durability, returns, and complaints.
+    fields:
+      review_id:        { dtype: str,      required: true }
+      brand:            { dtype: str,      required: true }
+      platform:         { dtype: str,      required: true }
+      review_date:      { dtype: date,     required: true }
+      star_rating:      { dtype: float,    required: true,  min: 1.0, max: 5.0 }
+      review_text:      { dtype: str,      required: true }
+      topics_mentioned: { dtype: list_str, required: false }
+      verified_purchase:{ dtype: bool,     required: false }
+      sentiment_label:  { dtype: str,      required: false, values: [positive, neutral, negative, mixed] }
+      complaint_type:   { dtype: str,      required: false, values: [quality, fit, sizing, delivery, returns, customer_service, sustainability, other, none] }
+      source_id:        { dtype: str,      required: true }
+      synthetic:        { dtype: bool,     required: true,  default: false }
+
+  official_claims:
+    description: >
+      Claims made by the brand in official communications: website copy, press releases,
+      impact reports, sustainability pages, packaging, and investor statements.
+      Primary corpus for claim validation workstream.
+    fields:
+      claim_id:         { dtype: str,      required: true }
+      brand:            { dtype: str,      required: true }
+      claim_text:       { dtype: str,      required: true }
+      claim_category:   { dtype: str,      required: true,  values: [quality, sustainability, inclusivity, performance, ethics, community, pricing, other] }
+      source_type:      { dtype: str,      required: true,  values: [website, press_release, impact_report, packaging, social_bio, campaign_copy, other] }
+      source_url:       { dtype: str,      required: false }
+      date_captured:    { dtype: date,     required: true }
+      verifiable:       { dtype: bool,     required: false }
+      evidence_strength:{ dtype: str,      required: false, values: [strong, moderate, weak, unverifiable] }
+      source_id:        { dtype: str,      required: true }
+      synthetic:        { dtype: bool,     required: true,  default: false }
+
+  competitor_platforms:
+    description: >
+      Aggregated platform presence metrics for competitor benchmarking.
+      One row per brand-platform combination.
+    fields:
+      brand:              { dtype: str,    required: true }
+      platform:           { dtype: str,    required: true,  values: [instagram, tiktok, youtube, website] }
+      followers:          { dtype: int,    required: false }
+      avg_post_frequency: { dtype: float,  required: false }
+      creator_tier_mix:   { dtype: str,    required: false }
+      content_format_mix: { dtype: str,    required: false }
+      date_captured:      { dtype: date,   required: true }
+      notes:              { dtype: str,    required: false }
+      source_id:          { dtype: str,    required: true }
+      synthetic:          { dtype: bool,   required: true,  default: false }
+
+  claim_assessments:
+    description: >
+      Human or model assessments of how well official claims are supported by
+      customer/press/creator evidence. Produced in Workstream 2 and Notebook 03.
+    fields:
+      assessment_id:      { dtype: str,    required: true }
+      claim_id:           { dtype: str,    required: true }
+      brand:              { dtype: str,    required: true }
+      claim_category:     { dtype: str,    required: true }
+      claim_text:         { dtype: str,    required: true }
+      supporting_evidence:{ dtype: str,    required: false }
+      contradicting_evidence: { dtype: str, required: false }
+      divergence_score:   { dtype: float,  required: false, min: 0.0, max: 1.0 }
+      assessor:           { dtype: str,    required: true,  values: [human, model, hybrid] }
+      confidence:         { dtype: str,    required: false, values: [high, medium, low] }
+      notes:              { dtype: str,    required: false }
+      source_id:          { dtype: str,    required: true }
+      synthetic:          { dtype: bool,   required: true,  default: false }

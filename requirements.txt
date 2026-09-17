@@ -1,0 +1,47 @@
+# Core data
+pandas>=2.0.0
+numpy>=1.24.0
+
+# ML / modelling
+scikit-learn>=1.3.0
+
+# Visualisation
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+kaleido>=0.2.1
+
+# Jupyter
+jupyter>=1.0.0
+jupyterlab>=4.0.0
+ipykernel>=6.25.0
+ipywidgets>=8.0.0
+
+# Config / utilities
+pyyaml>=6.0
+python-dotenv>=1.0.0
+tqdm>=4.65.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# NLP / text
+nltk>=3.8.0
+textblob>=0.17.0
+sentence-transformers>=2.2.0
+
+# Vector store (pick one; both listed for flexibility)
+faiss-cpu>=1.7.4
+chromadb>=0.4.0
+
+# Image / vision
+Pillow>=10.0.0
+opencv-python>=4.8.0
+
+# Optional: Hugging Face transformers (for CLIP, ViT)
+# transformers>=4.35.0
+# torch>=2.0.0          # CPU-only; uncomment if GPU available
+# torchvision>=0.15.0
+
+# Word clouds / EDA extras
+wordcloud>=1.9.0

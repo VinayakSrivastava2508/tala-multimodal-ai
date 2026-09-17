@@ -1,0 +1,95 @@
+# Brand configuration for TALA Multimodal AI Strategy project
+# Edit platform handles or add fields as new data becomes available.
+
+focal_brand:
+  name: TALA
+  slug: tala
+  country: UK
+  founded: 2019
+  type: D2C premium activewear / athleisure
+  website: https://weartala.com
+  founder: Grace Beverley
+  positioning: sustainability-led, inclusive sizing, creator-founded
+  price_tier: premium
+  size_range: "XS–3XL"
+  sustainability_claims:
+    - recycled fabrics
+    - carbon offset
+    - ethical manufacturing
+  platforms:
+    instagram:
+      handle: "@weartala"
+      url: https://www.instagram.com/weartala/
+    tiktok:
+      handle: "@weartala"
+    youtube:
+      channel: TALA
+    website_blog: https://weartala.com/blogs
+
+competitors:
+  - name: Adanola
+    slug: adanola
+    country: UK
+    founded: 2018
+    type: D2C activewear / elevated basics
+    website: https://adanola.com
+    positioning: minimalist premium, celebrity adjacent, aspiration
+    price_tier: premium
+    platforms:
+      instagram:
+        handle: "@adanola"
+      tiktok:
+        handle: "@adanola"
+
+  - name: Girlfriend Collective
+    slug: girlfriend_collective
+    country: US
+    founded: 2016
+    type: D2C sustainable activewear
+    website: https://girlfriend.com
+    positioning: inclusive sizing, sustainability-first, body positive
+    price_tier: mid-premium
+    size_range: "XXS–6XL"
+    sustainability_claims:
+      - recycled PET bottles
+      - recycled fishing nets
+      - ethical manufacturing (Fair Trade certified)
+    platforms:
+      instagram:
+        handle: "@girlfriendcollective"
+      tiktok:
+        handle: "@girlfriendcollective"
+
+  - name: Oner Active
+    slug: oner_active
+    country: UK
+    founded: 2019
+    type: D2C premium activewear
+    website: https://oneractive.com
+    positioning: performance-led, community-first, fitness influencer network
+    price_tier: premium
+    platforms:
+      instagram:
+        handle: "@oneractive"
+      tiktok:
+        handle: "@oneractive"
+      youtube:
+        channel: Oner Active
+
+# Review and community sources to collect data from
+data_sources:
+  reviews:
+    - trustpilot
+    - google_reviews
+    - sitejabber
+  community:
+    - reddit_r_femalefashionadvice
+    - reddit_r_gymsnark
+    - reddit_r_ukfashion
+  press:
+    - vogue
+    - refinery29
+    - good_on_you
+    - the_guardian
+  creator_databases:
+    - manual_compilation

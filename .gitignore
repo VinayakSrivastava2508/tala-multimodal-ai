@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+*.whl
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Environment variables
+.env
+*.env.local
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Data — raw and processed data are NOT committed by default
+# Remove entries below if you want to track small CSVs
+data/raw/
+data/interim/
+data/processed/
+data/corpora/
+# Manual labels ARE tracked (human effort, small files)
+!data/manual_labels/
+
+# Outputs — figures and tables generated; track only intentionally
+outputs/figures/
+outputs/tables/
+# Deck assets may be large; track selectively
+outputs/deck_assets/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Model weights / large binaries
+*.bin
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# ChromaDB / FAISS indexes
+chroma_db/
+*.faiss
+*.index
+
+# Logs
+*.log
+logs/
