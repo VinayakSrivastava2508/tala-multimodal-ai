@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git *)"
+      "Bash(git *)",
+      "PowerShell(python -m venv \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\")",
+      "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\python.exe\" -m pip install --upgrade pip)",
+      "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\pip.exe\" install -r \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\requirements.txt\")",
+      "PowerShell(pip *)",
+      "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\jupyter.exe\" lab --notebook-dir \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\")",
+      "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\python.exe\" -m ipykernel install --user --name tala-multimodal-ai --display-name \"Python \\(TALA Multimodal AI\\)\")",
+      "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\python.exe\" \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\scripts\\\\validate_data.py\")"
     ]
   }
 }
