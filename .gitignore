@@ -25,12 +25,12 @@ env/
 *.ipynb_checkpoints
 
 # Data — raw and processed data are NOT committed by default
-# Remove entries below if you want to track small CSVs
 data/raw/
 data/interim/
 data/processed/
 data/corpora/
-# Manual labels ARE tracked (human effort, small files)
+# Templates and manual labels ARE tracked (scaffolding + human effort)
+!data/raw/templates/
 !data/manual_labels/
 
 # Outputs — figures and tables generated; track only intentionally

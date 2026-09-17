@@ -1,0 +1,1 @@
+assessment_id,claim_id,brand,claim_category,claim_text,supporting_evidence,contradicting_evidence,supporting_source_ids,contradicting_source_ids,divergence_score,assessor,confidence,source_url,source_platform,collection_date,collected_by,evidence_type,notes,citation_ready,source_id,synthetic

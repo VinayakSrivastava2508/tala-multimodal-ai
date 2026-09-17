@@ -17,7 +17,7 @@ def compute_creator_tier_distribution(
     Expects creator_posts_df to have columns: brand, creator_tier.
     Returns a Series indexed by tier names with fractional values summing to 1.
     """
-    subset = creator_posts_df[creator_posts_df["brand_mentioned"] == brand]
+    subset = creator_posts_df[creator_posts_df["brand"] == brand]
     if subset.empty:
         return pd.Series(dtype=float)
     return subset["creator_tier"].value_counts(normalize=True)
@@ -31,7 +31,7 @@ def compute_platform_diversity_score(
 
     Returns a float in [0, 1] where 1 = perfectly even distribution across platforms.
     """
-    subset = creator_posts_df[creator_posts_df["brand_mentioned"] == brand]
+    subset = creator_posts_df[creator_posts_df["brand"] == brand]
     if subset.empty or "platform" not in subset.columns:
         return 0.0
     counts = subset["platform"].value_counts(normalize=True)
@@ -49,7 +49,7 @@ def compute_avg_engagement_rate(
     Engagement rate = (likes + comments) / followers.
     Returns mean across rows where followers > 0, or NaN if insufficient data.
     """
-    subset = creator_posts_df[creator_posts_df["brand_mentioned"] == brand].copy()
+    subset = creator_posts_df[creator_posts_df["brand"] == brand].copy()
     if subset.empty:
         return float("nan")
     mask = subset["creator_followers"] > 0

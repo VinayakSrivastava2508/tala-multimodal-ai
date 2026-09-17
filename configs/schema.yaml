@@ -1,13 +1,31 @@
 # Data schemas for TALA Multimodal AI Strategy project
-# Used by src/validation.py to check DataFrames at load time.
-# Fields marked required: true must be non-null; others may be empty.
+# Used by src/validation.py and scripts/validate_data.py.
+#
+# EVIDENCE TYPE DISCIPLINE:
+#   official          → brand website, press releases, sustainability pages
+#   customer_experience → Trustpilot, Reddit, complaints, product reviews, press
+#   creator_strategy  → creator/influencer posts, paid partnerships, brand tags
+#   brand_positioning → brand-owned social content (Instagram, TikTok, YouTube)
+#   competitor_benchmark → competitor platform snapshots
+#   press             → journalism, editorial, NGO assessments
+#   community         → Reddit threads, forums, public complaint discussions
+#   assessment        → researcher-produced claim divergence assessments
+#
+# Common provenance fields (required on ALL schemas):
+#   source_url       URL of the specific piece of content
+#   source_platform  Domain or platform name (e.g. trustpilot.com, instagram, weartala.com)
+#   collection_date  YYYY-MM-DD when the row was collected
+#   collected_by     Team member name or initials
+#   evidence_type    One of the types above (schema-specific allowed values listed below)
+#   citation_ready   bool: true when URL, date, and text have been verified for citation
+#   notes            Free-text researcher notes
 
 schemas:
 
   social_posts:
     description: >
       Brand-owned or brand-tagged posts on Instagram, TikTok, or YouTube.
-      Evidence for brand positioning and campaign intent ONLY.
+      Evidence for BRAND POSITIONING only — not quality or sustainability.
     fields:
       post_id:          { dtype: str,      required: true }
       brand:            { dtype: str,      required: true }
@@ -19,20 +37,27 @@ schemas:
       likes:            { dtype: int,      required: false }
       comments:         { dtype: int,      required: false }
       views:            { dtype: int,      required: false }
-      url:              { dtype: str,      required: false }
       image_path:       { dtype: str,      required: false }
+      source_url:       { dtype: str,      required: true }
+      source_platform:  { dtype: str,      required: true }
+      collection_date:  { dtype: date,     required: true }
+      collected_by:     { dtype: str,      required: true }
+      evidence_type:    { dtype: str,      required: true,  values: [brand_positioning] }
+      notes:            { dtype: str,      required: false }
+      citation_ready:   { dtype: bool,     required: false, default: false }
       source_id:        { dtype: str,      required: true }
       synthetic:        { dtype: bool,     required: true,  default: false }
 
   creator_posts:
     description: >
-      Posts by creators / influencers who partner with or organically mention the brand.
-      Evidence for creator strategy, reach, and partnership diversity.
+      Posts by creators/influencers who partner with or organically mention the brand.
+      Evidence for CREATOR STRATEGY, reach, and partnership diversity.
+      Do not use as evidence for quality or sustainability claims.
     fields:
       post_id:          { dtype: str,      required: true }
+      brand:            { dtype: str,      required: true }
       creator_handle:   { dtype: str,      required: true }
       platform:         { dtype: str,      required: true,  values: [instagram, tiktok, youtube, other] }
-      brand_mentioned:  { dtype: str,      required: true }
       post_date:        { dtype: date,     required: true }
       partnership_type: { dtype: str,      required: false, values: [paid, gifted, organic, ambassador, unknown] }
       caption:          { dtype: str,      required: false }
@@ -42,77 +67,137 @@ schemas:
       comments:         { dtype: int,      required: false }
       views:            { dtype: int,      required: false }
       sentiment_label:  { dtype: str,      required: false, values: [positive, neutral, negative, mixed] }
-      url:              { dtype: str,      required: false }
+      source_url:       { dtype: str,      required: true }
+      source_platform:  { dtype: str,      required: true }
+      collection_date:  { dtype: date,     required: true }
+      collected_by:     { dtype: str,      required: true }
+      evidence_type:    { dtype: str,      required: true,  values: [creator_strategy] }
+      notes:            { dtype: str,      required: false }
+      citation_ready:   { dtype: bool,     required: false, default: false }
       source_id:        { dtype: str,      required: true }
       synthetic:        { dtype: bool,     required: true,  default: false }
 
-  reviews:
+  customer_reviews:
     description: >
-      Customer reviews from Trustpilot, Google, Sitejabber, or similar.
-      Primary evidence for quality, fit, sizing, durability, returns, and complaints.
+      Customer reviews from Trustpilot, Google, Sitejabber, Reddit, or similar.
+      PRIMARY evidence for quality, fit, sizing, durability, returns, and complaints.
+      Strip usernames before saving. Do not store PII.
     fields:
       review_id:        { dtype: str,      required: true }
       brand:            { dtype: str,      required: true }
       platform:         { dtype: str,      required: true }
       review_date:      { dtype: date,     required: true }
-      star_rating:      { dtype: float,    required: true,  min: 1.0, max: 5.0 }
+      star_rating:      { dtype: float,    required: false, min: 1.0, max: 5.0 }
       review_text:      { dtype: str,      required: true }
       topics_mentioned: { dtype: list_str, required: false }
       verified_purchase:{ dtype: bool,     required: false }
       sentiment_label:  { dtype: str,      required: false, values: [positive, neutral, negative, mixed] }
       complaint_type:   { dtype: str,      required: false, values: [quality, fit, sizing, delivery, returns, customer_service, sustainability, other, none] }
+      source_url:       { dtype: str,      required: true }
+      source_platform:  { dtype: str,      required: true }
+      collection_date:  { dtype: date,     required: true }
+      collected_by:     { dtype: str,      required: true }
+      evidence_type:    { dtype: str,      required: true,  values: [customer_experience] }
+      notes:            { dtype: str,      required: false }
+      citation_ready:   { dtype: bool,     required: false, default: false }
       source_id:        { dtype: str,      required: true }
       synthetic:        { dtype: bool,     required: true,  default: false }
 
   official_claims:
     description: >
       Claims made by the brand in official communications: website copy, press releases,
-      impact reports, sustainability pages, packaging, and investor statements.
-      Primary corpus for claim validation workstream.
+      impact/sustainability reports, packaging, investor statements.
+      PRIMARY corpus for claim validation. Copy verbatim; include URL and access date.
     fields:
       claim_id:         { dtype: str,      required: true }
       brand:            { dtype: str,      required: true }
       claim_text:       { dtype: str,      required: true }
       claim_category:   { dtype: str,      required: true,  values: [quality, sustainability, inclusivity, performance, ethics, community, pricing, other] }
-      source_type:      { dtype: str,      required: true,  values: [website, press_release, impact_report, packaging, social_bio, campaign_copy, other] }
-      source_url:       { dtype: str,      required: false }
-      date_captured:    { dtype: date,     required: true }
+      source_type:      { dtype: str,      required: true,  values: [website, press_release, impact_report, packaging, social_bio, campaign_copy, interview, other] }
       verifiable:       { dtype: bool,     required: false }
       evidence_strength:{ dtype: str,      required: false, values: [strong, moderate, weak, unverifiable] }
+      source_url:       { dtype: str,      required: true }
+      source_platform:  { dtype: str,      required: true }
+      collection_date:  { dtype: date,     required: true }
+      collected_by:     { dtype: str,      required: true }
+      evidence_type:    { dtype: str,      required: true,  values: [official] }
+      notes:            { dtype: str,      required: false }
+      citation_ready:   { dtype: bool,     required: false, default: false }
       source_id:        { dtype: str,      required: true }
       synthetic:        { dtype: bool,     required: true,  default: false }
 
   competitor_platforms:
     description: >
-      Aggregated platform presence metrics for competitor benchmarking.
-      One row per brand-platform combination.
+      Aggregated platform-presence snapshots for competitive benchmarking.
+      One row per brand × platform combination. Capture date is critical.
     fields:
       brand:              { dtype: str,    required: true }
       platform:           { dtype: str,    required: true,  values: [instagram, tiktok, youtube, website] }
       followers:          { dtype: int,    required: false }
+      following:          { dtype: int,    required: false }
       avg_post_frequency: { dtype: float,  required: false }
       creator_tier_mix:   { dtype: str,    required: false }
       content_format_mix: { dtype: str,    required: false }
-      date_captured:      { dtype: date,   required: true }
+      verified_account:   { dtype: bool,   required: false }
+      source_url:         { dtype: str,    required: true }
+      source_platform:    { dtype: str,    required: true }
+      collection_date:    { dtype: date,   required: true }
+      collected_by:       { dtype: str,    required: true }
+      evidence_type:      { dtype: str,    required: true,  values: [competitor_benchmark] }
       notes:              { dtype: str,    required: false }
+      citation_ready:     { dtype: bool,   required: false, default: false }
       source_id:          { dtype: str,    required: true }
       synthetic:          { dtype: bool,   required: true,  default: false }
 
+  press_reddit_sources:
+    description: >
+      Press articles, Reddit threads, blog posts, and community discussions.
+      Used as CUSTOMER EXPERIENCE and PRESS evidence for quality, sustainability,
+      and responsibility claim validation. Never use as creator strategy evidence.
+    fields:
+      source_id:        { dtype: str,      required: true }
+      brand:            { dtype: str,      required: true }
+      source_type:      { dtype: str,      required: true,  values: [press, reddit, blog, forum, news, podcast, other] }
+      publication:      { dtype: str,      required: true }
+      title:            { dtype: str,      required: true }
+      author:           { dtype: str,      required: false }
+      date_published:   { dtype: date,     required: false }
+      summary:          { dtype: str,      required: false }
+      key_quote:        { dtype: str,      required: false }
+      topics_mentioned: { dtype: list_str, required: false }
+      sentiment_label:  { dtype: str,      required: false, values: [positive, neutral, negative, mixed] }
+      source_url:       { dtype: str,      required: true }
+      source_platform:  { dtype: str,      required: true }
+      collection_date:  { dtype: date,     required: true }
+      collected_by:     { dtype: str,      required: true }
+      evidence_type:    { dtype: str,      required: true,  values: [press, community] }
+      notes:            { dtype: str,      required: false }
+      citation_ready:   { dtype: bool,     required: false, default: false }
+      synthetic:        { dtype: bool,     required: true,  default: false }
+
   claim_assessments:
     description: >
-      Human or model assessments of how well official claims are supported by
-      customer/press/creator evidence. Produced in Workstream 2 and Notebook 03.
+      Researcher assessments of how well each official claim is supported or
+      contradicted by customer/press/creator evidence. Output of Workstream 2.
     fields:
-      assessment_id:      { dtype: str,    required: true }
-      claim_id:           { dtype: str,    required: true }
-      brand:              { dtype: str,    required: true }
-      claim_category:     { dtype: str,    required: true }
-      claim_text:         { dtype: str,    required: true }
-      supporting_evidence:{ dtype: str,    required: false }
-      contradicting_evidence: { dtype: str, required: false }
-      divergence_score:   { dtype: float,  required: false, min: 0.0, max: 1.0 }
-      assessor:           { dtype: str,    required: true,  values: [human, model, hybrid] }
-      confidence:         { dtype: str,    required: false, values: [high, medium, low] }
-      notes:              { dtype: str,    required: false }
-      source_id:          { dtype: str,    required: true }
-      synthetic:          { dtype: bool,   required: true,  default: false }
+      assessment_id:          { dtype: str,   required: true }
+      claim_id:               { dtype: str,   required: true }
+      brand:                  { dtype: str,   required: true }
+      claim_category:         { dtype: str,   required: true }
+      claim_text:             { dtype: str,   required: true }
+      supporting_evidence:    { dtype: str,   required: false }
+      contradicting_evidence: { dtype: str,   required: false }
+      supporting_source_ids:  { dtype: str,   required: false }
+      contradicting_source_ids: { dtype: str, required: false }
+      divergence_score:       { dtype: float, required: false, min: 0.0, max: 1.0 }
+      assessor:               { dtype: str,   required: true,  values: [human, model, hybrid] }
+      confidence:             { dtype: str,   required: false, values: [high, medium, low] }
+      source_url:             { dtype: str,   required: false }
+      source_platform:        { dtype: str,   required: false }
+      collection_date:        { dtype: date,  required: true }
+      collected_by:           { dtype: str,   required: true }
+      evidence_type:          { dtype: str,   required: true,  values: [assessment] }
+      notes:                  { dtype: str,   required: false }
+      citation_ready:         { dtype: bool,  required: false, default: false }
+      source_id:              { dtype: str,   required: true }
+      synthetic:              { dtype: bool,  required: true,  default: false }

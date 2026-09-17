@@ -40,13 +40,46 @@ tala-multimodal-ai/
 ## 3-Day Workflow
 
 ### Day 1 — Data Compilation & EDA
-- Populate manual CSV templates under `data/raw/` (reviews, official claims, creator posts, competitor data).
-- Run `01_data_compilation_and_eda.ipynb`.
-- Validate all datasets with `src/validation.py` against `configs/schema.yaml`.
-- Log every source in `docs/source_log_template.md`.
+
+**Step 1 — Copy templates**
+```
+data/raw/templates/ → data/raw/
+```
+Rename each copy: `official_claims_template.csv` → `official_claims_tala.csv`, etc.
+
+**Step 2 — Collect sources manually**
+
+| File | Sources | Evidence type |
+|------|---------|---------------|
+| `official_claims_tala.csv` | weartala.com/sustainability, /responsibility, /about, press interviews | `official` |
+| `customer_reviews_tala.csv` | Trustpilot (public), Google Reviews, Reddit complaints | `customer_experience` |
+| `press_reddit_sources_tala.csv` | Good on You, Guardian, r/femalefashionadvice, r/gymsnark | `press` / `community` |
+| `creator_posts_tala.csv` | Instagram/TikTok creator tags, #ad posts, ambassador content | `creator_strategy` |
+| `competitor_platforms.csv` | Adanola, GF Collective, Oner Active — IG/TikTok/YT profile snapshots | `competitor_benchmark` |
+
+**Step 3 — Register every source**
+
+Add a row to `docs/source_log_template.md` for every URL you collect from.
+
+**Step 4 — Validate provenance**
+```bash
+python scripts/validate_data.py
+```
+Fix all FAIL errors. WARN and EMPTY are acceptable for Day 1.
+
+**Step 5 — Run EDA notebook**
+```bash
+jupyter lab
+# Open notebooks/01_data_compilation_and_eda.ipynb
+# Kernel: Python (TALA Multimodal AI)
+```
+
+**Day 1 done when:** All loaded datasets pass validation; EDA plots for ratings, complaint types, creator tier, and competitor followers are visible.
+
+---
 
 ### Day 2 — Modelling & Features
-- Extract text, image, and platform features (`src/text_features.py`, `src/image_features.py`, `src/video_features.py`).
+- Extract text, image, and platform features (`src/text_features.py`, `src/image_features.py`).
 - Run `02_multimodal_features_and_fusion.ipynb` (early / late / hybrid fusion).
 - Run `03_creator_strategy_and_claim_divergence.ipynb` (claim gap scoring, moat metrics).
 
