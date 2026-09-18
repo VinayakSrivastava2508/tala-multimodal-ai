@@ -8,7 +8,11 @@
       "PowerShell(pip *)",
       "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\jupyter.exe\" lab --notebook-dir \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\")",
       "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\python.exe\" -m ipykernel install --user --name tala-multimodal-ai --display-name \"Python \\(TALA Multimodal AI\\)\")",
-      "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\python.exe\" \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\scripts\\\\validate_data.py\")"
+      "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\python.exe\" \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\scripts\\\\validate_data.py\")",
+      "Bash(code *)",
+      "Bash(.venv\\\\Scripts\\\\pip install *)",
+      "PowerShell(cd \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\"; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; .\\\\.venv\\\\Scripts\\\\python scripts/collect_day1_public_data.py 2>&1)",
+      "PowerShell(cd \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\"; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; .\\\\.venv\\\\Scripts\\\\python scripts/validate_data.py 2>&1)"
     ]
   }
 }

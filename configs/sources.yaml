@@ -1,0 +1,212 @@
+# Source configuration for automated data collection
+# Used by scripts/collect_day1_public_data.py and src/collectors/
+
+collection:
+  request_delay_seconds: 2
+  obey_robots_txt: true
+  max_rows_per_page: 30
+  max_rows_per_query: 25
+  collected_by: "auto_pipeline"
+  user_agent: "tala-research-bot/0.1 (academic; non-commercial; SPJIMR ANA526-PPM)"
+
+brands:
+  tala:
+    name: "TALA"
+    slug: "tala"
+    website: "https://weartala.com"
+    trustpilot_url: "https://www.trustpilot.com/review/wearetala.com"
+    official_pages:
+      - url: "https://weartala.com/pages/about"
+        source_type: "website"
+        claim_category: "community"
+      - url: "https://weartala.com/pages/sustainability"
+        source_type: "website"
+        claim_category: "sustainability"
+      - url: "https://weartala.com/pages/responsibility"
+        source_type: "website"
+        claim_category: "ethics"
+      - url: "https://weartala.com/pages/our-story"
+        source_type: "website"
+        claim_category: "community"
+      - url: "https://weartala.com"
+        source_type: "website"
+        claim_category: "quality"
+    gdelt_queries:
+      - "TALA activewear"
+      - "TALA Grace Beverley"
+      - "TALA sustainability activewear"
+      - "weartala"
+    news_queries:
+      - "TALA activewear review"
+      - "TALA Grace Beverley brand"
+      - "TALA activewear sustainability"
+    reddit_queries:
+      - "TALA activewear"
+      - "TALA gym wear"
+      - "TALA quality"
+      - "weartala"
+    creator_queries:
+      - "TALA activewear creator ambassador"
+      - "TALA activewear haul"
+      - "TALA activewear review youtube"
+
+  adanola:
+    name: "Adanola"
+    slug: "adanola"
+    website: "https://adanola.com"
+    trustpilot_url: "https://www.trustpilot.com/review/www.adanola.com"
+    official_pages:
+      - url: "https://adanola.com/pages/about"
+        source_type: "website"
+        claim_category: "community"
+      - url: "https://adanola.com"
+        source_type: "website"
+        claim_category: "quality"
+    gdelt_queries:
+      - "Adanola activewear"
+      - "Adanola brand"
+    news_queries:
+      - "Adanola activewear"
+      - "Adanola brand review"
+    reddit_queries:
+      - "Adanola activewear"
+      - "Adanola quality"
+    creator_queries:
+      - "Adanola activewear creator"
+      - "Adanola haul"
+
+  girlfriend_collective:
+    name: "Girlfriend Collective"
+    slug: "girlfriend_collective"
+    website: "https://girlfriend.com"
+    trustpilot_url: "https://www.trustpilot.com/review/girlfriend.com"
+    official_pages:
+      - url: "https://girlfriend.com/pages/about-us"
+        source_type: "website"
+        claim_category: "community"
+      - url: "https://girlfriend.com/pages/sustainability"
+        source_type: "website"
+        claim_category: "sustainability"
+      - url: "https://girlfriend.com"
+        source_type: "website"
+        claim_category: "quality"
+    gdelt_queries:
+      - "Girlfriend Collective activewear"
+      - "Girlfriend Collective sustainability"
+    news_queries:
+      - "Girlfriend Collective brand"
+      - "Girlfriend Collective sustainability"
+    reddit_queries:
+      - "Girlfriend Collective"
+      - "girlfriend collective quality"
+    creator_queries:
+      - "Girlfriend Collective activewear haul"
+
+  oner_active:
+    name: "Oner Active"
+    slug: "oner_active"
+    website: "https://oneractive.com"
+    trustpilot_url: "https://www.trustpilot.com/review/oneractive.com"
+    official_pages:
+      - url: "https://oneractive.com/pages/our-story"
+        source_type: "website"
+        claim_category: "community"
+      - url: "https://oneractive.com/pages/about"
+        source_type: "website"
+        claim_category: "community"
+      - url: "https://oneractive.com"
+        source_type: "website"
+        claim_category: "quality"
+    gdelt_queries:
+      - "Oner Active activewear"
+      - "Oner Active brand"
+    news_queries:
+      - "Oner Active brand review"
+    reddit_queries:
+      - "Oner Active"
+      - "oneractive quality"
+    creator_queries:
+      - "Oner Active activewear ambassador"
+
+reddit:
+  subreddits:
+    - femalefashionadvice
+    - gymsnark
+    - ukfashion
+    - gymwear
+    - fitness
+    - activewear
+  quality_queries:
+    - "TALA quality review"
+    - "TALA fit sizing"
+    - "TALA returns complaint"
+    - "TALA fabric durability"
+  community_queries:
+    - "TALA activewear"
+    - "TALA gym wear thoughts"
+    - "TALA brand"
+
+gdelt:
+  max_records: 25
+  timespan: "3months"
+  queries:
+    - "TALA activewear"
+    - "TALA Grace Beverley"
+    - "TALA sustainability"
+    - "Adanola activewear"
+    - "Girlfriend Collective sustainability"
+    - "Oner Active brand"
+    - "premium activewear sustainability UK"
+    - "D2C activewear brand comparison UK"
+
+youtube:
+  max_results: 25
+  queries:
+    - "TALA activewear review"
+    - "TALA haul try on"
+    - "TALA gym wear"
+    - "TALA ambassador"
+    - "Adanola activewear review"
+    - "Girlfriend Collective review"
+    - "Oner Active review"
+    - "premium activewear comparison"
+
+apify:
+  trustpilot_actor: "bebity/trustpilot-reviews-scraper"
+  google_search_actor: "apify/google-search-scraper"
+  run_timeout_seconds: 300
+  trustpilot_review_count: 50
+  google_results_per_query: 10
+  google_queries:
+    - "TALA activewear review site:trustpilot.com OR site:reddit.com"
+    - "TALA gym wear quality complaints"
+    - "TALA activewear creator ambassador instagram"
+    - "Adanola activewear review"
+    - "Girlfriend Collective quality review"
+    - "Oner Active review"
+
+keywords:
+  quality_responsibility:
+    - "quality"
+    - "durability"
+    - "fabric"
+    - "fit"
+    - "sizing"
+    - "returns"
+    - "customer service"
+    - "sustainability"
+    - "ethical"
+    - "recycled"
+    - "complaint"
+    - "disappointed"
+    - "recommend"
+  creator_strategy:
+    - "ambassador"
+    - "gifted"
+    - "paid partnership"
+    - "sponsored"
+    - "haul"
+    - "try on"
+    - "discount code"
+    - "collab"
+    - "campaign"

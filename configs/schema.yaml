@@ -54,14 +54,14 @@ schemas:
       Evidence for CREATOR STRATEGY, reach, and partnership diversity.
       Do not use as evidence for quality or sustainability claims.
     fields:
-      post_id:          { dtype: str,      required: true }
+      post_id:          { dtype: str,      required: false }
       brand:            { dtype: str,      required: true }
-      creator_handle:   { dtype: str,      required: true }
+      creator_handle:   { dtype: str,      required: false }
       platform:         { dtype: str,      required: true,  values: [instagram, tiktok, youtube, other] }
-      post_date:        { dtype: date,     required: true }
+      post_date:        { dtype: date,     required: false }
       partnership_type: { dtype: str,      required: false, values: [paid, gifted, organic, ambassador, unknown] }
       caption:          { dtype: str,      required: false }
-      creator_followers:{ dtype: int,      required: false }
+      creator_followers: { dtype: int,      required: false }
       creator_tier:     { dtype: str,      required: false, values: [nano, micro, mid, macro, mega] }
       likes:            { dtype: int,      required: false }
       comments:         { dtype: int,      required: false }
@@ -83,14 +83,14 @@ schemas:
       PRIMARY evidence for quality, fit, sizing, durability, returns, and complaints.
       Strip usernames before saving. Do not store PII.
     fields:
-      review_id:        { dtype: str,      required: true }
+      review_id:        { dtype: str,      required: false }
       brand:            { dtype: str,      required: true }
       platform:         { dtype: str,      required: true }
-      review_date:      { dtype: date,     required: true }
+      review_date:      { dtype: date,     required: false }
       star_rating:      { dtype: float,    required: false, min: 1.0, max: 5.0 }
       review_text:      { dtype: str,      required: true }
       topics_mentioned: { dtype: list_str, required: false }
-      verified_purchase:{ dtype: bool,     required: false }
+      verified_purchase: { dtype: bool,     required: false }
       sentiment_label:  { dtype: str,      required: false, values: [positive, neutral, negative, mixed] }
       complaint_type:   { dtype: str,      required: false, values: [quality, fit, sizing, delivery, returns, customer_service, sustainability, other, none] }
       source_url:       { dtype: str,      required: true }
@@ -115,7 +115,7 @@ schemas:
       claim_category:   { dtype: str,      required: true,  values: [quality, sustainability, inclusivity, performance, ethics, community, pricing, other] }
       source_type:      { dtype: str,      required: true,  values: [website, press_release, impact_report, packaging, social_bio, campaign_copy, interview, other] }
       verifiable:       { dtype: bool,     required: false }
-      evidence_strength:{ dtype: str,      required: false, values: [strong, moderate, weak, unverifiable] }
+      evidence_strength: { dtype: str,      required: false, values: [strong, moderate, weak, unverifiable] }
       source_url:       { dtype: str,      required: true }
       source_platform:  { dtype: str,      required: true }
       collection_date:  { dtype: date,     required: true }

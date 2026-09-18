@@ -134,7 +134,7 @@ def validate_provenance(df: pd.DataFrame, label: str = "") -> list[str]:
 
     bad_url = check_source_url(df)
     if bad_url:
-        issues.append(f"[{label}] source_url missing/blank: {len(bad_url)} row(s) → indices {bad_url[:5]}{'...' if len(bad_url) > 5 else ''}")
+        issues.append(f"[{label}] source_url missing/blank: {len(bad_url)} row(s) -- indices {bad_url[:5]}{'...' if len(bad_url) > 5 else ''}")
 
     bad_date = check_collection_date(df)
     if bad_date:
