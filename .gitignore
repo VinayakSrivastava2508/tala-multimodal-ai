@@ -29,6 +29,7 @@ data/raw/
 data/interim/
 data/processed/
 data/corpora/
+data/cache/
 # Templates and manual labels ARE tracked (scaffolding + human effort)
 !data/raw/templates/
 !data/manual_labels/

@@ -25,29 +25,35 @@ from src.validation import validate_all_files, print_summary_report  # noqa: E40
 
 
 def main() -> int:
-    data_dir = PROJECT_ROOT / "data" / "raw"
+    # Scan data/raw/ (original), plus data/interim/ and data/corpora/ when present
+    scan_dirs = [PROJECT_ROOT / "data" / "raw"]
+    for extra in ("data/interim", "data/corpora"):
+        p = PROJECT_ROOT / extra
+        if p.exists():
+            scan_dirs.append(p)
 
-    print(f"\nScanning: {data_dir}")
-    print("-" * 70)
+    all_results: dict = {}
+    for data_dir in scan_dirs:
+        print(f"\nScanning: {data_dir}")
+        print("-" * 70)
+        results = validate_all_files(data_dir=data_dir, verbose=True)
+        all_results.update(results)
 
-    results = validate_all_files(data_dir=data_dir, verbose=True)
-
-    if not results:
-        print("No CSV files found. Add data files to data/raw/ before validating.")
+    if not all_results:
+        print("No CSV files found.")
         return 0
 
-    print_summary_report(results)
+    print_summary_report(all_results)
 
-    # Exit 1 if any non-empty file failed
     failures = [
-        path for path, r in results.items()
+        path for path, r in all_results.items()
         if r.get("rows", 0) > 0 and not r.get("passed")
     ]
     if failures:
         print(f"Action required: fix the {len(failures)} file(s) marked FAIL above.\n")
         return 1
 
-    print("All files passed validation (empty templates are fine — fill them in).\n")
+    print("All files passed validation (empty templates are fine -- fill them in).\n")
     return 0
 
 

@@ -16,7 +16,17 @@
       "PowerShell(cd \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\"; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; .\\\\.venv\\\\Scripts\\\\python scripts/clean_day1_data.py 2>&1)",
       "Bash(python -c ' *)",
       "Bash(.venvScriptspython.exe -c ' *)",
-      "Bash(.\\\\.venv\\\\Scripts\\\\python.exe -c \"import bs4; print\\('bs4 ok'\\); import requests; print\\('requests ok'\\)\")"
+      "Bash(.\\\\.venv\\\\Scripts\\\\python.exe -c \"import bs4; print\\('bs4 ok'\\); import requests; print\\('requests ok'\\)\")",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-WmiObject *)",
+      "PowerShell($cache = \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\data\\\\cache\"; if \\(Test-Path $cache\\) { $files = Get-ChildItem $cache -Recurse -File; Write-Host \"Cache files: $\\($files.Count\\)\"; Write-Host \"Total size KB: $\\([math]::Round\\(\\($files | Measure-Object Length -Sum\\).Sum / 1KB, 1\\)\\)\" } else { Write-Host \"No cache directory yet\" })",
+      "PowerShell($cache = \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\data\\\\cache\"; $files = Get-ChildItem $cache -Recurse -File -ErrorAction SilentlyContinue; $total = $files.Count; $newest = \\($files | Sort-Object LastWriteTime -Descending | Select-Object -First 3 | ForEach-Object { \"$\\($_.Name.Substring\\(0,12\\)\\)... $\\($_.LastWriteTime.ToString\\('HH:mm:ss'\\)\\) $\\([math]::Round\\($_.Length/1KB,1\\)\\)KB\" }\\) -join \"`n\"; Write-Host \"Total cached: $total\"; Write-Host \"3 newest:\"; Write-Host $newest)",
+      "PowerShell($cache = \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\data\\\\cache\"; $file = Get-ChildItem $cache -Recurse -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1; $content = Get-Content $file.FullName -Raw | ConvertFrom-Json; Write-Host \"URL: $\\($content.input_url\\)\"; Write-Host \"Status: $\\($content.hydration_status\\)\"; Write-Host \"Strength: $\\($content.evidence_strength\\)\"; Write-Host \"Text len: $\\($content.text_length\\)\"; Write-Host \"Failure: $\\($content.failure_reason\\)\")",
+      "PowerShell(python -c \"import pandas as pd; df = pd.read_csv\\('D:/MAS Assignment/tala-multimodal-ai/data/interim/day1_5/customer_reviews_patched.csv'\\); print\\(df['source_url'].str.contains\\('trustpilot', na=False\\).sum\\(\\), 'trustpilot URLs'\\); print\\(df['source_url'].head\\(10\\).to_string\\(\\)\\)\")",
+      "PowerShell(& \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import pandas as pd; df = pd.read_csv\\('D:/MAS Assignment/tala-multimodal-ai/data/interim/day1_5/customer_reviews_patched.csv'\\); print\\(df['source_url'].str.contains\\('trustpilot', na=False\\).sum\\(\\), 'trustpilot URLs'\\); print\\(df[['source_url']].head\\(10\\).to_string\\(\\)\\)\")",
+      "PowerShell($cache = \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\\\\data\\\\cache\"; $files = Get-ChildItem $cache -Recurse -File; $total = $files.Count; $last5 = $files | Sort-Object LastWriteTime -Descending | Select-Object -First 5 | ForEach-Object { $j = Get-Content $_.FullName -Raw | ConvertFrom-Json; \"$\\($j.hydration_status\\) $\\($j.evidence_strength\\) $\\($j.input_url.Substring\\(0,[Math]::Min\\(60,$j.input_url.Length\\)\\)\\)\" }; Write-Host \"Total cache entries: $total\"; $last5)",
+      "Bash(python scripts/recover_day2_gates.py)",
+      "Bash(python scripts/validate_data.py)"
     ]
   }
 }

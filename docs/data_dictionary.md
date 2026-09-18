@@ -188,6 +188,156 @@ Schema: `claim_assessments` | Evidence type: `assessment`
 
 ---
 
+## Day 2 Schemas (hydration + RAG corpora)
+
+Produced by `scripts/hydrate_day2_sources.py` (and its recovery counterpart
+`scripts/recover_day2_gates.py`). These are **distinct schemas** from the Day 1
+candidate schemas above, even where filenames share a substring (e.g.
+`official_claims_corpus.csv` vs. `official_claims_template.csv`) — see
+[Schema Routing](#schema-routing-day-1-vs-day-2) below for why that distinction
+matters and how the validator now enforces it. Defined in `configs/schema.yaml`
+under the "Day 2 schemas" section.
+
+### 8. `data/corpora/official_claims_corpus.csv`, `customer_experience_corpus.csv`, `creator_strategy_corpus.csv`
+
+Schemas: `official_claims_corpus`, `customer_experience_corpus`, `creator_strategy_corpus`
+
+One row = one RAG-ready document. All three share the same column layout:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `document_id` | str | ✓ | Unique within the corpus (e.g. `oc_0001`, `ce_rev_0001`, `cs_0001`) |
+| `corpus` | str | ✓ | Must equal the corpus's own name (`official_claims` / `customer_experience` / `creator_strategy`) |
+| `brand` | str | ✓ | Brand this document is evidence for |
+| `source_platform` | str | ✓ | Domain/platform the text was hydrated from |
+| `source_url` | str | ✓ | Must be `http(s)://` — the exact page/post hydrated |
+| `document_title` | str | | Page title if the source had one; frequently blank for review snippets and DDG-sourced creator posts |
+| `publication_date` | str | | If extractable from page metadata |
+| `extracted_text` | str | | The hydrated/extracted text. Required to be non-empty **only when `rag_usable=True`** — a weak, non-rag-usable row may legitimately have empty text |
+| `evidence_strength` | str | ✓ | One of `strong` / `medium` / `weak` / `unusable` |
+| `rag_usable` | bool | ✓ | `true` only for `strong`/`medium` evidence — a `weak`/`unusable` row with `rag_usable=true` is a validation failure |
+| `retrieved_at` | str | ✓ | ISO timestamp of hydration |
+| `provenance_note` | str | ✓ | Free text tracing where the row's evidence_strength came from |
+
+**`official_claims_corpus` specific:** `evidence_strength` here reflects the
+**source page's** hydration quality (via `data/interim/day2/hydrated_claims.csv`,
+joined on `source_id`), not the character length of the individual extracted claim
+sentence — a short but genuine sentence lifted from a strongly-hydrated brand page is
+strong evidence. Rows marked `strong` must carry `strength_source=source_page` in
+`provenance_note`; this is enforced so a future change can't silently revert to
+sentence-length scoring (where a strong page's five-word claim would wrongly score
+`weak`/`unusable`) without anyone noticing.
+
+**Fields the original Day 2 spec mentioned but that are NOT present as columns in
+these files** (`claim_text`, `claim_category`, `numerical_claim`, `unit`,
+`target_year`, `certification`, `material`, `geography`, `source_section`,
+`source_quote`): these live one step upstream, in
+`data/interim/day2/claims_expanded.csv`, not in the corpus export. They are
+deliberately left out of the `*_corpus` schemas rather than declared as "optional"
+columns that don't exist — a schema field that's absent as a column always fails
+validation in this project's `validate()`, regardless of its `required` flag, so
+declaring a genuinely-absent column would just reintroduce a false positive.
+
+### 9. `data/interim/day2/creator_posts_enriched.csv`
+
+Schema: `creator_posts_enriched`
+
+Day 1 `creator_posts` plus YouTube-API/DDG-discovered candidates from
+`enrich_creator_posts()`, repaired by Day 2 Task 1B
+(`scripts/repair_day2_creator_evidence.py`, see
+`docs/day2_evidence_hydration_audit.md` §7) before corpus-building filters down to
+verified posts only. A pre-repair snapshot is kept at
+`data/interim/day2/archive/creator_posts_enriched_pre_repair.csv` (excluded from
+validator scanning — see [Schema Routing](#schema-routing-day-1-vs-day-2)).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `brand` | str | ✓ | |
+| `platform` | str | ✓ | |
+| `source_url` | str | ✓ | Always populated |
+| `post_url` | str | | Populated for newly-enriched rows only; pre-existing Day 1 rows carry the same URL in `source_url` instead |
+| `direct_post_url` / `direct_post_id` | str | | Set only when `url_validation_status=valid`: the canonical post URL and its platform-native video ID / shortcode |
+| `url_class` | str | | `youtube_video` / `youtube_short` / `tiktok_video` / `instagram_p` / `instagram_reel` / `instagram_tv`, or an invalid/lead class (`instagram_programme_or_campaign`, `youtube_search`, `youtube_channel`, `search_result`, ...) |
+| `url_validation_status` | str | ✓ | `valid` / `invalid` / `lead_only` |
+| `invalidation_reason` | str | | Set whenever `usable_as_creator_post=False`: e.g. `instagram_programme_or_campaign_page`, `creator_identity_unresolved`, `brand_link_unverified` |
+| `creator_handle` | str | | **Semantic rule:** required non-empty whenever `usable_as_creator_post=True` |
+| `creator_identity_source` | str | | `youtube_oembed` / `tiktok_url` / `existing_channel_metadata` / `existing_structured_metadata` / `page_metadata_og_title` / `none` |
+| `creator_identity_confidence` | str | ✓ | `high` / `medium` / `low` / `unresolved`; a row may be `usable_as_creator_post=True` only when this is `high` or `medium` |
+| `creator_identity_evidence` | str | | Free text: what was actually matched (e.g. oEmbed `author_name`) |
+| `brand_link_verified` | bool | ✓ | **Semantic rule:** required `True` whenever `usable_as_creator_post=True`. Never derived from the inherited `brand` column alone — only from `video_title`/`caption_or_description`/hashtag/personalised-code evidence |
+| `brand_link_evidence` / `brand_link_source` / `brand_link_confidence` | str | | What matched, which field it came from, and `high`/`medium`/`low`/`unresolved` |
+| `partnership_type` | str | | `unknown` / `unclear` / `organic` / `gifted` / `paid_sponsorship` / `ambassador` / `affiliate` / `founder_or_employee` — `paid_sponsorship`/`gifted`/`ambassador`/`affiliate`/`founder_or_employee` all require an explicit disclosure marker, never inferred from a brand mention alone |
+| `partnership_evidence` / `partnership_confidence` / `partnership_inferred` | | | What disclosure text matched, confidence, and whether the label was automatically inferred |
+| `usable_as_creator_post` | bool | ✓ | |
+| `evidence_strength` | str | ✓ | `strong` / `medium` / `weak` / `unusable` — see Part E rules in the audit doc; only `strong`/`medium` may be `usable_as_creator_post=True` |
+| `source_record_ids` | str | | Pipe-separated `source_id`s of rows merged into this one during deduplication on `(platform, direct_post_id)` |
+
+**Semantic rules (verified creator posts, i.e. `usable_as_creator_post=True`):**
+- Must resolve, via `post_url` falling back to `source_url`, to a **direct** post/video
+  URL — `instagram.com/p/...` or `/reel/...`, `tiktok.com/@handle/video/<id>`,
+  `youtube.com/watch?v=...`, `/shorts/...`, or `youtu.be/...`. A profile page,
+  campaign/ambassador-program page, or DDG/Google search-result URL never qualifies.
+- `creator_handle` must be non-empty.
+- `evidence_strength` must be present.
+- `brand_link_verified` must be `True`.
+- No `(platform, direct_post_id)` pair may repeat among usable rows.
+- Missing follower/like/view/comment counts never fail validation — those columns
+  aren't part of this schema's required set at all.
+
+### 10. `data/interim/day2/platform_strategy_enriched.csv`
+
+Schema: `platform_strategy_enriched`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `brand` | str | ✓ | |
+| `platform` | str | ✓ | |
+| `evidence_url` | str | ✓ | Hydrated platform URL |
+| `evidence_strength` | str | ✓ | `strong` / `medium` / `weak` / `unusable` |
+
+### 11. `data/interim/day2/hydrated_sources.csv`
+
+Schema: `hydrated_sources`
+
+Rolled-up hydration summary across press, claims, reviews, and platform sources.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source_type` | str | ✓ | `press` / `claims` / `reviews` / `platforms` |
+| `source_id` | str | ✓ | |
+| `brand` | str | ✓ | |
+| `source_url` | str | ✓ | |
+| `hydration_status` | str | ✓ | `success` / `cached` / `failed` / `skipped` / `blocked` |
+| `evidence_strength` | str | ✓ | `strong` / `medium` / `weak` / `unusable` |
+| `rag_usable` | bool | ✓ | |
+| `text_length` | int | ✓ | |
+| `retrieved_at` | str | ✓ | |
+
+Note: this rolled-up file does **not** carry `final_url`, `hydrated_text`, or
+`hydration_timestamp_utc` — those exist per-source (with an `h_` prefix) in the
+individual `hydrated_press.csv` / `hydrated_claims.csv` / `reviews_labeled.csv` /
+`platform_strategy_enriched.csv` files, not in this combined summary. The schema
+only declares columns this file actually has.
+
+## Schema Routing: Day 1 vs. Day 2
+
+Several Day 2 filenames share a substring with a Day 1 schema name — e.g.
+`official_claims_corpus.csv` starts with `official_claims`, and
+`creator_posts_enriched.csv` starts with `creator_posts`. Until 2026-09-18, the
+validator (`src/validation.py::guess_schema`) inferred schemas purely by filename
+**prefix**, so both of those Day 2 files were silently routed to the Day 1 schemas
+and failed validation against a column layout they were never meant to have
+(`claim_id`, `collection_date`, `citation_ready`, etc.) — a routing false positive,
+not a real data problem.
+
+This is now fixed with a two-tier lookup in `guess_schema()`:
+1. **Exact filename-stem match** (`EXACT_FILENAME_SCHEMA`) — checked first, covers
+   all six Day 2 files above.
+2. **Legacy prefix match** (`FILENAME_TO_SCHEMA`) — only consulted when no exact
+   match is found; this is unchanged and still resolves all seven Day 1 schemas.
+
+See `docs/day2_evidence_hydration_audit.md` for the before/after validation results.
+
 ## Naming Conventions
 
 - **IDs:** `{type_prefix}_{brand_slug}_{platform_slug}_{sequence}` — e.g. `rev_tala_tp_001`

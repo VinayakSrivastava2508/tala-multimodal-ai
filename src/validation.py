@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -11,7 +12,21 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-# Map CSV filename patterns to schema names
+# Deterministic exact-filename-stem -> schema routing. Checked BEFORE the legacy
+# substring inference below, so a Day 2 file whose stem happens to start with a Day 1
+# schema name (e.g. "official_claims_corpus" starts with "official_claims") is never
+# misrouted to the Day 1 schema.
+EXACT_FILENAME_SCHEMA: Dict[str, str] = {
+    "official_claims_corpus":      "official_claims_corpus",
+    "customer_experience_corpus":  "customer_experience_corpus",
+    "creator_strategy_corpus":      "creator_strategy_corpus",
+    "creator_posts_enriched":      "creator_posts_enriched",
+    "platform_strategy_enriched":  "platform_strategy_enriched",
+    "hydrated_sources":              "hydrated_sources",
+}
+
+# Legacy filename PREFIX inference for Day 1 files. Only consulted when no exact
+# match is found above.
 FILENAME_TO_SCHEMA: Dict[str, str] = {
     "social_posts":           "social_posts",
     "creator_posts":          "creator_posts",
@@ -25,6 +40,27 @@ FILENAME_TO_SCHEMA: Dict[str, str] = {
 # Provenance fields every dataset must carry
 PROVENANCE_FIELDS = ["source_url", "source_platform", "collection_date", "collected_by", "evidence_type"]
 
+RAG_CORPUS_SCHEMAS: Dict[str, str] = {
+    "official_claims_corpus":      "official_claims",
+    "customer_experience_corpus":  "customer_experience",
+    "creator_strategy_corpus":      "creator_strategy",
+}
+
+CREATOR_PARTNERSHIP_VALUES = {
+    "unknown", "unclear", "organic", "gifted", "paid_sponsorship", "ambassador", "affiliate",
+}
+
+DIRECT_SOCIAL_URL_RX = re.compile(
+    r"instagram\.com/(?:p|reel)/[A-Za-z0-9_-]+"
+    r"|tiktok\.com/@[^/]+/video/\d+"
+    r"|youtube\.com/watch\?v=[\w-]+"
+    r"|youtube\.com/shorts/[\w-]+"
+    r"|youtu\.be/[\w-]+",
+    re.I,
+)
+
+SEARCH_ENGINE_URL_RX = re.compile(r"google\.|duckduckgo\.", re.I)
+
 
 def load_schema() -> dict:
     """Return parsed schema.yaml as a dict."""
@@ -33,8 +69,12 @@ def load_schema() -> dict:
 
 
 def guess_schema(filename: str) -> str | None:
-    """Guess the schema name from a CSV filename. Returns None if no match."""
+    """Return the schema name for a CSV filename: exact stem match first, then
+    legacy Day 1 prefix inference as a fallback. Returns None if no match.
+    """
     stem = Path(filename).stem.lower()
+    if stem in EXACT_FILENAME_SCHEMA:
+        return EXACT_FILENAME_SCHEMA[stem]
     for pattern, schema in FILENAME_TO_SCHEMA.items():
         if stem.startswith(pattern):
             return schema
@@ -42,6 +82,9 @@ def guess_schema(filename: str) -> str | None:
 
 
 # ── Core field validation ──────────────────────────────────────────────────────
+
+FAIL_PREFIXES = ("MISSING", "NULL", "INVALID", "BELOW", "ABOVE", "DUPLICATE", "SEMANTIC")
+
 
 def validate(df: pd.DataFrame, schema_name: str) -> Tuple[bool, list[str]]:
     """Validate a DataFrame against a named schema from configs/schema.yaml.
@@ -81,13 +124,173 @@ def validate(df: pd.DataFrame, schema_name: str) -> Tuple[bool, list[str]]:
             if n:
                 errors.append(f"ABOVE MAX in '{col}': {n} row(s) > {spec['max']}")
 
+    if schema_name in RAG_CORPUS_SCHEMAS:
+        errors.extend(validate_rag_corpus(df, schema_name))
+    elif schema_name == "creator_posts_enriched":
+        errors.extend(validate_creator_posts_enriched(df))
+
     if "synthetic" in df.columns:
         n = int(df["synthetic"].fillna(False).sum())
         if n:
             errors.append(f"WARNING: {n} row(s) marked synthetic=True — exclude from final analysis")
 
-    passed = all(not e.startswith(("MISSING", "NULL", "INVALID", "BELOW", "ABOVE")) for e in errors)
+    passed = all(not e.startswith(FAIL_PREFIXES) for e in errors)
     return passed, errors
+
+
+# ── Semantic validation: RAG corpora ─────────────────────────────────────────────
+
+def _blank_mask(series: pd.Series) -> pd.Series:
+    """Return boolean mask of null-or-blank-string values in a Series."""
+    return series.isna() | (series.astype(str).str.strip() == "")
+
+
+def _bool_mask(series: pd.Series) -> pd.Series:
+    """Coerce a bool-like column (bool dtype or 'True'/'False' strings) to bool."""
+    return series.map(lambda v: str(v).strip().lower() == "true")
+
+
+def validate_rag_corpus(df: pd.DataFrame, schema_name: str) -> list[str]:
+    """Cross-field semantic checks for the three RAG corpus schemas.
+
+    Enforces: unique non-blank document_id, corpus name matches the schema,
+    source_url is URL-like, extracted_text is non-empty when rag_usable=True,
+    weak/unusable rows cannot be rag_usable=True, and (official_claims_corpus only)
+    each row must carry claim text via claim_text or extracted_text.
+    """
+    errors: list[str] = []
+
+    if "document_id" in df.columns:
+        blank = _blank_mask(df["document_id"])
+        if blank.any():
+            errors.append(f"SEMANTIC: document_id blank: {int(blank.sum())} row(s)")
+        dup_n = int(df["document_id"].dropna().duplicated().sum())
+        if dup_n:
+            errors.append(f"DUPLICATE document_id: {dup_n} row(s) share an id with an earlier row")
+
+    if "source_url" in df.columns:
+        bad = df["source_url"].isna() | ~df["source_url"].astype(str).str.match(r"^https?://", na=False)
+        n = int(bad.sum())
+        if n:
+            errors.append(f"SEMANTIC: source_url missing or not URL-like (http/https): {n} row(s)")
+
+    rag_bool = _bool_mask(df["rag_usable"]) if "rag_usable" in df.columns else None
+    strength = df["evidence_strength"] if "evidence_strength" in df.columns else None
+
+    if rag_bool is not None and "extracted_text" in df.columns:
+        empty_text = _blank_mask(df["extracted_text"]) | (df["extracted_text"].astype(str).str.lower() == "nan")
+        bad = empty_text & rag_bool
+        n = int(bad.sum())
+        if n:
+            errors.append(f"SEMANTIC: extracted_text empty while rag_usable=True: {n} row(s)")
+
+    if rag_bool is not None and strength is not None:
+        bad = strength.isin(["weak", "unusable"]) & rag_bool
+        n = int(bad.sum())
+        if n:
+            errors.append(f"SEMANTIC: evidence_strength weak/unusable but rag_usable=True: {n} row(s)")
+
+    if schema_name == "official_claims_corpus":
+        text_cols = [c for c in ("claim_text", "extracted_text") if c in df.columns]
+        if text_cols:
+            has_any = pd.Series(False, index=df.index)
+            for c in text_cols:
+                has_any = has_any | (~_blank_mask(df[c]) & (df[c].astype(str).str.lower() != "nan"))
+            n = int((~has_any).sum())
+            if n:
+                errors.append(
+                    f"SEMANTIC: official_claims_corpus row has neither claim_text nor extracted_text: {n} row(s)"
+                )
+        if strength is not None and "provenance_note" in df.columns:
+            strong_rows = strength == "strong"
+            unsupported = strong_rows & ~df["provenance_note"].astype(str).str.contains(
+                "strength_source=source_page", na=False
+            )
+            n = int(unsupported.sum())
+            if n:
+                errors.append(
+                    "SEMANTIC: official_claims_corpus rows marked 'strong' without provenance tying that "
+                    f"strength to a successfully hydrated source page: {n} row(s)"
+                )
+
+    return errors
+
+
+# ── Semantic validation: creator_posts_enriched ──────────────────────────────────
+
+def validate_creator_posts_enriched(df: pd.DataFrame) -> list[str]:
+    """Cross-field semantic checks for the creator_posts_enriched schema.
+
+    A row counts as a VERIFIED creator post only if usable_as_creator_post=True AND
+    it resolves (via post_url, falling back to source_url) to a direct Instagram,
+    TikTok, or YouTube post/video URL — never a search-result, profile, or campaign
+    page. Missing follower/engagement metrics never fail validation.
+    """
+    errors: list[str] = []
+    if "usable_as_creator_post" not in df.columns:
+        return errors
+
+    usable = _bool_mask(df["usable_as_creator_post"])
+
+    url_cols = [c for c in ("post_url", "source_url") if c in df.columns]
+
+    def _effective_url(row: pd.Series) -> str:
+        for c in url_cols:
+            val = row.get(c)
+            if pd.notna(val) and str(val).strip():
+                return str(val)
+        return ""
+
+    urls = df.apply(_effective_url, axis=1) if url_cols else pd.Series([""] * len(df), index=df.index)
+
+    not_direct = ~urls.apply(lambda u: bool(DIRECT_SOCIAL_URL_RX.search(u)))
+    bad_url = usable & not_direct
+    n = int(bad_url.sum())
+    if n:
+        errors.append(
+            f"SEMANTIC: usable_as_creator_post=True without a direct Instagram/TikTok/YouTube post URL: {n} row(s)"
+        )
+
+    is_search = usable & urls.str.contains(SEARCH_ENGINE_URL_RX, na=False)
+    n = int(is_search.sum())
+    if n:
+        errors.append(f"SEMANTIC: usable_as_creator_post=True on a search-engine result URL: {n} row(s)")
+
+    if "creator_handle" in df.columns:
+        blank_handle = usable & _blank_mask(df["creator_handle"])
+        n = int(blank_handle.sum())
+        if n:
+            errors.append(f"SEMANTIC: creator_handle blank for usable_as_creator_post=True: {n} row(s)")
+
+    for col in ("brand", "platform"):
+        if col in df.columns:
+            n = int(_blank_mask(df[col]).sum())
+            if n:
+                errors.append(f"SEMANTIC: {col} blank: {n} row(s)")
+
+    if "evidence_strength" in df.columns:
+        blank_strength = usable & df["evidence_strength"].isna()
+        n = int(blank_strength.sum())
+        if n:
+            errors.append(f"SEMANTIC: evidence_strength missing for usable_as_creator_post=True: {n} row(s)")
+
+    if "brand_link_verified" in df.columns:
+        verified_bool = _bool_mask(df["brand_link_verified"])
+        unverified = usable & ~verified_bool
+        n = int(unverified.sum())
+        if n:
+            errors.append(f"SEMANTIC: brand_link_verified is not True for usable_as_creator_post=True: {n} row(s)")
+
+    if "direct_post_id" in df.columns and "platform" in df.columns:
+        key = df["platform"].astype(str).str.lower() + "::" + df["direct_post_id"].astype(str)
+        usable_keys = key[usable & ~_blank_mask(df["direct_post_id"])]
+        dup_n = int(usable_keys.duplicated().sum())
+        if dup_n:
+            errors.append(
+                f"DUPLICATE platform+direct_post_id among usable_as_creator_post=True rows: {dup_n} row(s)"
+            )
+
+    return errors
 
 
 # ── Provenance checks ──────────────────────────────────────────────────────────
@@ -202,7 +405,15 @@ def validate_all_files(
     data_dir = Path(data_dir) if data_dir else PROJECT_ROOT / "data" / "raw"
     results = {}
 
-    csv_files = sorted(data_dir.rglob("*.csv"))
+    # "archive" directories hold pre-repair backup snapshots (see
+    # scripts/repair_day2_creator_evidence.py) -- historical copies of a file's OLD
+    # shape, kept for audit purposes. They're intentionally excluded from schema
+    # validation: they don't reflect current pipeline output and re-validating them
+    # against a schema built for the CURRENT shape would be comparing the file to a
+    # standard it predates, not a real data-quality issue.
+    csv_files = sorted(
+        p for p in data_dir.rglob("*.csv") if "archive" not in p.relative_to(PROJECT_ROOT).parts
+    )
     if not csv_files:
         print(f"[validation] No CSV files found in {data_dir}")
         return results

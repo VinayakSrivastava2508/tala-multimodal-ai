@@ -52,3 +52,6 @@ duckduckgo-search>=6.0.0
 feedparser>=6.0.0
 html5lib>=1.1
 python-dateutil>=2.8.0
+
+# Dev / testing
+pytest>=7.4.0

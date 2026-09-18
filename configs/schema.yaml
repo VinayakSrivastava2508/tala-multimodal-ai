@@ -175,6 +175,135 @@ schemas:
       citation_ready:   { dtype: bool,     required: false, default: false }
       synthetic:        { dtype: bool,     required: true,  default: false }
 
+  # ── Day 2 schemas ──────────────────────────────────────────────────────────
+  # These describe files produced by scripts/hydrate_day2_sources.py.
+  # They intentionally do NOT reuse the Day 1 candidate schemas above (official_claims,
+  # creator_posts, etc.) even though some filenames share a substring with them — the
+  # Day 2 files have a different column layout (RAG-corpus export / enriched interim
+  # shape) and must be routed to these definitions explicitly. See
+  # EXACT_FILENAME_SCHEMA in src/validation.py.
+  #
+  # Field lists below reflect the ACTUAL columns written by hydrate_day2_sources.py as
+  # of 2026-09-18 (verified against the generated CSVs) — fields the earlier spec
+  # mentioned but that are not present in the corpus export (e.g. claim_text,
+  # claim_category, numerical_claim on official_claims_corpus) live upstream in
+  # data/interim/day2/claims_expanded.csv, not in the corpus file, and are therefore
+  # left out here rather than invented as columns that don't exist.
+
+  official_claims_corpus:
+    description: >
+      RAG-ready corpus of official TALA/competitor claims, built from hydrated
+      official_claims source pages (Part C/G of hydrate_day2_sources.py). One row =
+      one extracted claim sentence. evidence_strength reflects the SOURCE PAGE's
+      hydration quality, not the length of the individual sentence.
+    fields:
+      document_id:        { dtype: str,  required: true }
+      corpus:              { dtype: str,  required: true,  values: [official_claims] }
+      brand:                { dtype: str,  required: true }
+      source_platform:    { dtype: str,  required: true }
+      source_url:          { dtype: str,  required: true }
+      document_title:      { dtype: str,  required: false }
+      publication_date:    { dtype: str,  required: false }
+      extracted_text:      { dtype: str,  required: false }
+      evidence_strength:  { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      rag_usable:          { dtype: bool, required: true,  values: [true, false] }
+      retrieved_at:        { dtype: str,  required: true }
+      provenance_note:    { dtype: str,  required: true }
+
+  customer_experience_corpus:
+    description: >
+      RAG-ready corpus of customer-experience evidence (reviews + press), built in
+      Part G of hydrate_day2_sources.py from customer_reviews and press_reddit_sources.
+    fields:
+      document_id:        { dtype: str,  required: true }
+      corpus:              { dtype: str,  required: true,  values: [customer_experience] }
+      brand:                { dtype: str,  required: true }
+      source_platform:    { dtype: str,  required: true }
+      source_url:          { dtype: str,  required: true }
+      document_title:      { dtype: str,  required: false }
+      publication_date:    { dtype: str,  required: false }
+      extracted_text:      { dtype: str,  required: false }
+      evidence_strength:  { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      rag_usable:          { dtype: bool, required: true,  values: [true, false] }
+      retrieved_at:        { dtype: str,  required: true }
+      provenance_note:    { dtype: str,  required: true }
+
+  creator_strategy_corpus:
+    description: >
+      RAG-ready corpus of verified creator-post evidence, built in Part G of
+      hydrate_day2_sources.py from enriched creator_posts.
+    fields:
+      document_id:        { dtype: str,  required: true }
+      corpus:              { dtype: str,  required: true,  values: [creator_strategy] }
+      brand:                { dtype: str,  required: true }
+      source_platform:    { dtype: str,  required: true }
+      source_url:          { dtype: str,  required: true }
+      document_title:      { dtype: str,  required: false }
+      publication_date:    { dtype: str,  required: false }
+      extracted_text:      { dtype: str,  required: false }
+      evidence_strength:  { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      rag_usable:          { dtype: bool, required: true,  values: [true, false] }
+      retrieved_at:        { dtype: str,  required: true }
+      provenance_note:    { dtype: str,  required: true }
+
+  creator_posts_enriched:
+    description: >
+      Interim Day 2 output of enrich_creator_posts() (Part E) as repaired by Day 2
+      Task 1B (scripts/repair_day2_creator_evidence.py): Day 1 creator_posts plus
+      YouTube-API/DDG-discovered candidates, with strict URL classification, creator
+      identity resolution, and brand-link verification applied before
+      corpus-building. Distinct from the Day 1 creator_posts candidate schema — do
+      not route filenames here to that schema. post_url is populated for
+      newly-enriched rows; pre-existing rows carry the same URL in source_url
+      instead, so URL-presence is checked against either column (see
+      validate_creator_posts_enriched in src/validation.py).
+    fields:
+      brand:                              { dtype: str,  required: true }
+      platform:                            { dtype: str,  required: true }
+      source_url:                          { dtype: str,  required: true }
+      post_url:                            { dtype: str,  required: false }
+      creator_handle:                      { dtype: str,  required: false }
+      creator_identity_confidence:        { dtype: str,  required: true,
+        values: [high, medium, low, unresolved] }
+      url_validation_status:              { dtype: str,  required: true,
+        values: [valid, invalid, lead_only] }
+      direct_post_id:                      { dtype: str,  required: false }
+      brand_link_verified:                { dtype: bool, required: true,  values: [true, false] }
+      partnership_type:                    { dtype: str,  required: false,
+        values: [unknown, unclear, organic, gifted, paid_sponsorship, ambassador, affiliate, founder_or_employee] }
+      usable_as_creator_post:              { dtype: bool, required: true,  values: [true, false] }
+      evidence_strength:                  { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+
+  platform_strategy_enriched:
+    description: >
+      Interim Day 2 output of enrich_platform_strategy() (Part F): competitor/focal
+      platform snapshots with inferred channel role, posting intent, and evidence
+      strength from hydrating each platform's URL.
+    fields:
+      brand:              { dtype: str,  required: true }
+      platform:            { dtype: str,  required: true }
+      evidence_url:        { dtype: str,  required: true }
+      evidence_strength:  { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+
+  hydrated_sources:
+    description: >
+      Combined Day 2 hydration summary (Part I) across press, claims, reviews, and
+      platform sources. Note: unlike the per-source hydrated_*.csv files (which carry
+      h_final_url / h_hydrated_text / h_hydration_timestamp_utc), this rolled-up
+      summary only carries the columns below — final_url/hydrated_text/
+      hydration_timestamp_utc were requested but do not exist as columns in this
+      specific file, so they are intentionally omitted here rather than invented.
+    fields:
+      source_type:        { dtype: str,  required: true }
+      source_id:            { dtype: str,  required: true }
+      brand:                { dtype: str,  required: true }
+      source_url:          { dtype: str,  required: true }
+      hydration_status:    { dtype: str,  required: true,  values: [success, cached, failed, skipped, blocked] }
+      evidence_strength:  { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      rag_usable:          { dtype: bool, required: true,  values: [true, false] }
+      text_length:          { dtype: int,  required: true }
+      retrieved_at:        { dtype: str,  required: true }
+
   claim_assessments:
     description: >
       Researcher assessments of how well each official claim is supported or
