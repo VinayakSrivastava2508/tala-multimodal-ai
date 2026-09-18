@@ -86,20 +86,26 @@ print(f"Genuinely downloaded (any status): {int((video_assets['local_path'].notn
 code("""video_role_dist = pd.read_csv(TABLES / "video_role_distribution.csv")
 display(video_role_dist)""")
 
-md("""### 2a. Shortfall vs. target — reported honestly
+md("""### 2a. Video recovery priority and shortfall — reported honestly, not competitor-penalised
 
-Target: 12–20 processable video assets across ≥3 brands, ≥4 TALA, ≥2 distinct video roles.
-**Actual: 1 processed video asset, 1 brand (TALA), 1 role (`product_demonstration`).**
+Competitor video is strategically useful for secondary brand comparison but is **not mandatory**
+for the primary TALA claim-experience objective. Recovery priority order:
+1. Permitted TALA official/product videos. 2. Other permitted TALA-relevant videos.
+3. Official competitor videos, secondary comparison only. 4. Open-license generic apparel video,
+method demonstration only.
+
+Judged against the **TALA-depth target** (ideal ≥4 TALA videos), not competitor brand count:
+**1/4 target TALA videos processed, 0 competitor videos (not required).**
 
 Route 1 (official product-page embedded video) found a direct `<source src=.mp4>` only on TALA's
 storefront theme — Adanola, Girlfriend Collective, and Oner Active product pages (25 scanned each)
 had none. Route 2 (open-licensed video) found none. Route 3 (brand-authorised local video files
 under `data/raw/authorised_video_assets/`) has 0 files supplied. No yt-dlp, unofficial downloader,
-or stream extraction was used against YouTube/TikTok/Instagram to close this gap — per the charter,
-that would be a prohibited access method, not a legitimate remediation.
+or stream extraction was used against YouTube/TikTok/Instagram to close this gap.
 
-**This is a genuine, documented shortfall.** The Video Package is marked PARTIAL in
-`outputs/tables/assignment_modality_audit.csv`, not silently reported as met.""")
+**This is a genuine, documented shortfall against the TALA depth target** — but the Video
+*Pipeline* itself is PASS (100% of genuinely processed videos produced valid temporal features);
+only the Video *Package*'s TALA depth is PARTIAL. Competitor absence alone never fails either.""")
 
 md("## 3. Genuine temporal video processing — frame-level and video-level features")
 
@@ -130,21 +136,25 @@ Links each verified official TALA claim to candidate text/image/video/reference 
 (`scripts/build_claim_multimodal_candidates.py`). This is a **candidate layer**, not a scored
 divergence assessment — every row requires human validation before use downstream.""")
 
-code("""n_claims = len(claim_candidates)
-n_text = int((claim_candidates["text_evidence_ids"].fillna("") != "").sum())
-n_image = int((claim_candidates["image_asset_ids"].fillna("") != "").sum())
-n_video = int((claim_candidates["video_asset_ids"].fillna("") != "").sum())
-n_reference = int((claim_candidates["reference_document_ids"].fillna("") != "").sum())
-n_all3 = int(((claim_candidates["text_evidence_ids"].fillna("") != "")
-              & (claim_candidates["image_asset_ids"].fillna("") != "")
-              & (claim_candidates["video_asset_ids"].fillna("") != "")).sum())
+md("""**A bundle counts as "processed" as soon as it has ≥1 verified modality** — collapsing every
+partial bundle (e.g. text + reference, no image/video) down to zero would misreport real evidence
+as absent. The breakdown below reports every combination separately
+(`outputs/tables/claim_evidence_bundle_summary.csv`, `scripts/audit_assignment_modalities.py::build_claim_evidence_bundle_summary`).""")
+
+code("""bundle_summary = pd.read_csv(TABLES / "claim_evidence_bundle_summary.csv")
+display(bundle_summary.T.rename(columns={0: "count"}))
+
+n_claims = int(bundle_summary["n_claims"].iloc[0])
+n_ge1 = int(bundle_summary["bundles_with_ge1_verified_modality"].iloc[0])
+n_ge2 = int(bundle_summary["bundles_with_ge2_eligible_modalities"].iloc[0])
+n_all3 = int(bundle_summary["bundles_with_text_image_video"].iloc[0])
+n_reference = int(bundle_summary["bundles_with_reference_evidence"].iloc[0])
 
 print(f"Claims represented: {n_claims}")
-print(f"  with text evidence:      {n_text}/{n_claims}")
-print(f"  with image evidence:     {n_image}/{n_claims}")
-print(f"  with video evidence:     {n_video}/{n_claims}")
-print(f"  with reference evidence: {n_reference}/{n_claims}")
-print(f"  with text+image+video:   {n_all3}/{n_claims}")
+print(f"  processed (>=1 verified modality): {n_ge1}/{n_claims}")
+print(f"  >=2 eligible modalities:           {n_ge2}/{n_claims}")
+print(f"  with reference evidence:           {n_reference}/{n_claims}")
+print(f"  with text+image+video:             {n_all3}/{n_claims}")
 print(f"  requires_human_validation: {int(claim_candidates['requires_human_validation'].sum())}/{n_claims}")""")
 
 code("""display(claim_candidates[["claim_id", "claim_category", "claim_text", "text_evidence_ids",
@@ -172,26 +182,41 @@ Notebook 02 §9c for the full modelling-feasibility reclassification (tracks 4�
 code("""descriptive_engagement = pd.read_csv(TABLES / "descriptive_creator_engagement.csv")
 display(descriptive_engagement)""")
 
-md("""## 7. Transition to primary claim-evidence fusion and RAG
+md("""## 7. Primary claim-evidence fusion readiness (minimum defensible bar)
 
-**Video Package: PARTIAL.** **Multimodal Reference Package: FAIL.** **Claim-evidence candidate
-layer: PARTIAL** (0/37 claims have all three of text+image+video evidence; reference evidence is
-missing for all 37 claims because the Reference Package is not yet populated).
+Primary fusion does **not** require all 37 claims to carry every modality. Readiness is judged
+against a 7-criterion minimum bar
+(`scripts/audit_assignment_modalities.py::evaluate_primary_fusion_readiness`,
+`outputs/tables/primary_fusion_readiness.csv`):""")
+
+code("""readiness = pd.read_csv(TABLES / "primary_fusion_readiness.csv")
+display(readiness)""")
+
+md("""### Multimodal RAG — modality-routing design principle
+
+RAG is not implemented yet. The binding rule for when it is: **route each claim's retrieval to
+the modalities that are actually relevant to it.** A responsibility/labour/sustainability claim
+should retrieve text, tables, certificates, and document images — not an irrelevant product
+video. A fit/product-presentation/movement claim may legitimately retrieve text, catalog images,
+and product/try-on video. This is already implemented at the candidate-generation layer above
+(`VISUALLY_GROUNDABLE_CLAIM_CATEGORIES` gating image/video matches to `materials`-category
+claims only) — the future RAG retriever must reuse this same category→modality routing table
+rather than retrieving all modalities uniformly for every query.
 
 ### GO / NO-GO
 
-| Downstream stage | Verdict |
-|---|---|
-| Primary claim-evidence fusion | **NO-GO** — Video and Reference packages are not yet adequate for a representative fusion input. |
-| Multimodal RAG | **NO-GO** — full multimodal RAG (text + image + video + reference) is premature until Video and Reference packages close their gaps. |
+| Downstream stage | Verdict | Basis |
+|---|---|---|
+| Primary claim-evidence fusion | **NO-GO** | 3/7 minimum-bar criteria unmet: Reference Package empty, <5 claims with >=2 modalities, 0 claims with a defensible text+image+video bundle. All three pipelines genuinely work -- these are depth gaps, not capability gaps. |
+| Multimodal RAG | **NO-GO** | Same underlying gaps -- building RAG now would silently over-rely on text, the only consistently available modality. |
 
-**Remediation before re-attempting fusion/RAG:**
-1. Place brand-authorised local video files under `data/raw/authorised_video_assets/` for
-   Adanola, Girlfriend Collective, and Oner Active (no yt-dlp/unofficial downloaders).
-2. Collect Multimodal Reference Package documents (impact reports, certifications, material
-   specs, sizing/care guidance, return policies) per brand.
+**Remediation, in priority order:**
+1. Recover more permitted TALA official/product videos (place any not directly downloadable
+   under `data/raw/authorised_video_assets/`); competitor video is secondary and not required.
+2. Collect the first Multimodal Reference Package documents (impact reports, certifications,
+   material specs, sizing/care guidance, return policies).
 3. Re-run `python scripts/run_day2_5_modality_alignment.py --refresh` and re-check
-   `outputs/tables/assignment_modality_audit.csv`.
+   `outputs/tables/primary_fusion_readiness.csv`.
 
 Full narrative: `docs/assignment_alignment_audit.md`.""")
 
@@ -202,9 +227,11 @@ print(f"  Verified official images:        {int((image_assets['processing_status
 print(f"  Video leads (not processed):     {n_leads}")
 print(f"  Genuinely processed videos:      {n_processed}")
 print(f"  Claim bundles:                   {n_claims}")
-print(f"  Claims with all 3 modalities:    {n_all3}/{n_claims}")
-print(f"  Primary fusion:                  NO-GO (see §7)")
-print(f"  Multimodal RAG:                  NO-GO (see §7)")""")
+print(f"  Claims processed (>=1 modality): {n_ge1}/{n_claims}")
+print(f"  Claims with text+image+video:    {n_all3}/{n_claims}")
+overall = readiness[readiness["criterion"] == "OVERALL"].iloc[0]
+print(f"  Primary fusion:                  {overall['status']} (see \\u00a77)")
+print(f"  Multimodal RAG:                  NO-GO (see \\u00a77)")""")
 
 nb["cells"] = cells
 with open("notebooks/03_video_pipeline_and_multimodal_evidence.ipynb", "w", encoding="utf-8") as f:

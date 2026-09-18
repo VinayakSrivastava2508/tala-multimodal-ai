@@ -153,6 +153,31 @@ def load_video_embeddings(video_level: pd.DataFrame) -> dict[str, np.ndarray]:
     return embeddings
 
 
+REFERENCE_TOP_K = 2
+
+
+def match_reference_evidence(claims: pd.DataFrame, reference_assets: pd.DataFrame) -> dict[str, list[str]]:
+    """Candidate reference-document matches, same brand only. The
+    multimodal_reference_assets schema carries no extracted body text (title +
+    document_type only), so there is no genuine semantic-similarity signal to
+    rank on -- ranking by evidence_strength (strong > medium > weak) is the
+    honest alternative to fabricating a similarity score. Returns {} entirely
+    while the Reference Package is unpopulated (current project state)."""
+    matches: dict[str, list[str]] = {cid: [] for cid in claims["claim_id"]}
+    if reference_assets.empty:
+        return matches
+    strength_rank = {"strong": 0, "medium": 1, "weak": 2, "unusable": 3}
+    for brand, claim_group in claims.groupby("brand"):
+        brand_refs = reference_assets[reference_assets["brand"] == brand].copy()
+        if brand_refs.empty:
+            continue
+        brand_refs["_rank"] = brand_refs["evidence_strength"].map(strength_rank).fillna(9)
+        top = brand_refs.sort_values("_rank").head(REFERENCE_TOP_K)["reference_id"].tolist()
+        for claim_id in claim_group["claim_id"]:
+            matches[claim_id] = top
+    return matches
+
+
 def match_visual_evidence(
     claims: pd.DataFrame, brand: str, embeddings: dict[str, np.ndarray], threshold: float
 ) -> dict[str, list[tuple[str, float]]]:
@@ -203,6 +228,7 @@ def main() -> int:
     reference_assets = _safe_read_csv(REFERENCE_ASSETS_PATH)
     print(f"Reference evidence pool: {len(reference_assets)} rows "
           f"({'none -- Multimodal Reference Package not yet populated, see docs/source_log_template.md' if reference_assets.empty else 'populated'})")
+    reference_matches = match_reference_evidence(claims, reference_assets)
 
     image_id_to_brand = dict(zip(image_assets.get("asset_id", []), image_assets.get("brand", [])))
     video_id_to_brand = dict(zip(video_assets.get("video_asset_id", []), video_assets.get("brand", [])))
@@ -221,6 +247,8 @@ def main() -> int:
             claims[claims["claim_id"] == claim["claim_id"]], brand, brand_video_embeddings, VIDEO_SIMILARITY_THRESHOLD
         ).get(claim["claim_id"], [])
 
+        r_matches = reference_matches.get(claim["claim_id"], [])
+
         missing = []
         if not t_matches:
             missing.append("text")
@@ -228,13 +256,19 @@ def main() -> int:
             missing.append("image")
         if not v_matches:
             missing.append("video")
-        if reference_assets.empty:
+        if not r_matches:
             missing.append("reference")
 
-        n_present = sum([bool(t_matches), bool(i_matches), bool(v_matches)])
-        if n_present == 3:
+        # Strength reflects how many of the four modalities (text/image/video/reference)
+        # have candidate evidence, not just text+image+video -- a bundle with verified
+        # text + reference evidence is genuinely processed, not "unusable", even though
+        # it is not yet fully (text+image+video) multimodal. See
+        # docs/assignment_alignment_audit.md "Claim bundle evidence" for the full
+        # breakdown by combination (scripts/audit_assignment_modalities.py).
+        n_present = sum([bool(t_matches), bool(i_matches), bool(v_matches), bool(r_matches)])
+        if t_matches and i_matches and v_matches:
             strength = "strong"
-        elif n_present == 2:
+        elif n_present >= 2:
             strength = "medium"
         elif n_present == 1:
             strength = "weak"
@@ -251,7 +285,7 @@ def main() -> int:
             "text_evidence_ids": ";".join(d for d, _ in t_matches),
             "image_asset_ids": ";".join(d for d, _ in i_matches),
             "video_asset_ids": ";".join(d for d, _ in v_matches),
-            "reference_document_ids": "",
+            "reference_document_ids": ";".join(r_matches),
             "text_similarity": round(float(np.mean([s for _, s in t_matches])), 4) if t_matches else None,
             "image_similarity": round(float(np.mean([s for _, s in i_matches])), 4) if i_matches else None,
             "video_similarity": round(float(np.mean([s for _, s in v_matches])), 4) if v_matches else None,

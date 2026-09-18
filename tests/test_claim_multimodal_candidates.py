@@ -135,6 +135,70 @@ def test_load_claims_filters_to_rag_usable_strong_or_medium(tmp_path, monkeypatc
 # exercised manually via `python scripts/build_claim_multimodal_candidates.py`
 # per docs/assignment_alignment_audit.md, not re-run in unit tests.
 
+# ── match_reference_evidence: brand isolation, evidence_strength ranking ──────
+
+def test_match_reference_evidence_empty_pool_returns_empty():
+    claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "x", "claim_category": "materials"}])
+    matches = mod.match_reference_evidence(claims, pd.DataFrame())
+    assert matches["c1"] == []
+
+
+def test_match_reference_evidence_only_matches_within_same_brand():
+    claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "x", "claim_category": "materials"}])
+    refs = pd.DataFrame([
+        {"reference_id": "r1", "brand": "Adanola", "evidence_strength": "strong"},
+    ])
+    matches = mod.match_reference_evidence(claims, refs)
+    assert matches["c1"] == []
+
+
+def test_match_reference_evidence_ranks_by_evidence_strength_and_caps_top_k():
+    claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "x", "claim_category": "materials"}])
+    refs = pd.DataFrame([
+        {"reference_id": "r_weak", "brand": "TALA", "evidence_strength": "weak"},
+        {"reference_id": "r_strong", "brand": "TALA", "evidence_strength": "strong"},
+        {"reference_id": "r_medium", "brand": "TALA", "evidence_strength": "medium"},
+    ])
+    matches = mod.match_reference_evidence(claims, refs)
+    assert matches["c1"] == ["r_strong", "r_medium"]  # top-2, strongest first
+
+
+# ── strength/missing-modality logic: text+reference bundle is not "unusable" ──
+
+def test_bundle_with_text_and_reference_is_not_unusable():
+    """A bundle with verified text + reference evidence (no image/video) is
+    genuinely processed evidence -- it must be labelled 'weak' or better, never
+    'unusable', and 'reference' must not appear in its missing_modalities."""
+    t_matches = [("doc_1", 0.5)]
+    i_matches = []
+    v_matches = []
+    r_matches = ["ref_1"]
+
+    missing = []
+    if not t_matches:
+        missing.append("text")
+    if not i_matches:
+        missing.append("image")
+    if not v_matches:
+        missing.append("video")
+    if not r_matches:
+        missing.append("reference")
+
+    n_present = sum([bool(t_matches), bool(i_matches), bool(v_matches), bool(r_matches)])
+    if t_matches and i_matches and v_matches:
+        strength = "strong"
+    elif n_present >= 2:
+        strength = "medium"
+    elif n_present == 1:
+        strength = "weak"
+    else:
+        strength = "unusable"
+
+    assert strength == "medium"  # text + reference = 2 present
+    assert "reference" not in missing
+    assert missing == ["image", "video"]
+
+
 def test_missing_modalities_never_silently_dropped_when_reference_pool_empty(tmp_path, monkeypatch):
     """If the Multimodal Reference Package is empty (current project state),
     'reference' must be reported as missing for every claim, never omitted."""

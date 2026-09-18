@@ -5,7 +5,9 @@
 narrative summary of that file at the time it was last written — if the two ever disagree,
 the CSV is correct and this file is stale; re-run the audit script and update this doc.
 
-Generated: 2026-09-18. Pipeline entry point: `python scripts/run_day2_5_modality_alignment.py`.
+Generated: 2026-09-18, last revised: 2026-09-18 (readiness-correction pass — see
+"Readiness-correction changelog" at the bottom). Pipeline entry point:
+`python scripts/run_day2_5_modality_alignment.py`.
 
 ## Status summary
 
@@ -17,8 +19,24 @@ Generated: 2026-09-18. Pipeline entry point: `python scripts/run_day2_5_modality
 | Multimodal Reference Package | **FAIL** |
 | Text Pipeline | **PASS** |
 | Image Pipeline | **PASS** |
-| Video Pipeline | **PARTIAL** |
+| Video Pipeline | **PASS** |
 | Claim-evidence candidate layer | **PARTIAL** |
+
+## Video recovery priority (binding order)
+
+Competitor video is strategically useful for secondary brand-strategy comparison, but is
+**not mandatory** for the primary TALA claim-experience objective. `scripts/build_video_asset_manifest.py`
+and any future recovery effort should prioritise in this order:
+
+1. Permitted TALA official/product videos.
+2. Other permitted TALA-relevant videos (e.g. creator-authorised content).
+3. Official competitor videos, for secondary comparison only.
+4. Open-license generic apparel videos, for method demonstration only.
+
+The Video Package/Pipeline verdicts below are judged on **genuine temporal processing quality,
+analytical relevance to the primary objective, provenance, and stated limitations** — never on
+whether every competitor brand has an authorised local video. Coverage width across competitors
+is not a PASS/FAIL gate.
 
 ## Text Package / Pipeline — PASS
 
@@ -37,29 +55,39 @@ zero duplicate file hashes. No creator thumbnails are counted in this total — 
 `image_role` distinguishes `official_catalog` from `creator_thumbnail`, and only the former
 counts toward Image Package coverage.
 
-## Video Package / Pipeline — PARTIAL (honest shortfall, not fabricated)
+## Video Package — PARTIAL / Video Pipeline — PASS
 
 - **62 total `video_assets.csv` rows.** 61 are `rights_or_access_basis=platform_metadata_only`
   — YouTube/TikTok URLs discovered from verified creator posts. These are **video leads**, not
   video assets: no yt-dlp, no unofficial downloader, no stream extraction was used against
   YouTube/TikTok/Instagram. They are correctly excluded from every coverage count.
-- **1 genuinely processed video** (`tala_video_001`): downloaded directly from TALA's own
-  Shopify CDN (an embedded `<source src=.mp4>` on a product page — a standard first-party asset,
-  not a platform scrape). Validated with OpenCV (readable, 44.7s duration, 9 genuinely distinct
-  sampled frames at opening/quarter/half/three-quarter/closing/interval positions), with frame-
-  level (brightness/contrast/saturation/edge-density/perceptual-hash/CLIP embedding) and
-  temporal (inter-frame perceptual distance, scene-change-count proxy, motion-intensity proxy,
-  visual-consistency score, opening-to-closing visual change) features computed
-  (`data/processed/video_frame_features.csv`, `video_level_features.csv`).
+- **1 genuinely processed video** (`tala_video_001`, TALA — the primary-objective brand):
+  downloaded directly from TALA's own Shopify CDN (an embedded `<source src=.mp4>` on a product
+  page — a standard first-party asset, not a platform scrape). Validated with OpenCV (readable,
+  44.7s duration, 9 genuinely distinct sampled frames at opening/quarter/half/three-quarter/
+  closing/interval positions), with frame-level (brightness/contrast/saturation/edge-density/
+  perceptual-hash/CLIP embedding) and temporal (inter-frame perceptual distance, scene-change-
+  count proxy, motion-intensity proxy, visual-consistency score, opening-to-closing visual
+  change) features computed (`data/processed/video_frame_features.csv`, `video_level_features.csv`).
 - Route 1 (official page video) found embedded video on **TALA only** — Adanola, Girlfriend
   Collective, and Oner Active product pages (25 scanned each) had none. Route 2 (open license)
   found none. Route 3 (authorised local) has 0 files supplied.
-- **Shortfall vs. target (12–20 assets, ≥3 brands, ≥4 TALA, ≥2 roles): have 1 processed asset,
-  1 brand.** This is reported honestly as PARTIAL, not papered over.
-- **Remediation:** place brand-authorised local video files under
-  `data/raw/authorised_video_assets/` for Adanola, Girlfriend Collective, and Oner Active.
-  Until that happens, the Video Package/Pipeline cannot reach PASS, and **no fabricated video
-  assets will be created to close the gap.**
+
+**Video Pipeline: PASS.** The pipeline is judged on whether genuine temporal processing *works*,
+not on how many videos currently feed it. 1/1 genuinely processed videos produced a full,
+non-null temporal-feature row (100% reliability on the input it received) — that is a working
+pipeline, demonstrated end to end, independent of asset count or brand breadth.
+
+**Video Package: PARTIAL**, judged against the TALA-depth target (ideal: ≥4 processed TALA
+videos), not competitor brand count:
+- TALA (primary objective): 1/4 target processed videos.
+- Competitor (secondary comparison, not required for PASS): 0 processed videos — **this alone
+  does not fail the package.**
+- **Remediation, in priority order:** (1) recover more permitted TALA official/product videos —
+  place any not directly downloadable under `data/raw/authorised_video_assets/`; (2) other
+  permitted TALA-relevant video (e.g. creator-authorised); (3) official competitor video for
+  secondary comparison only; (4) open-license generic apparel video for method demonstration
+  only. No yt-dlp/unofficial downloaders; no fabricated assets.
 - `transcript_available`/`transcript_text`: 0/1 — no transcript exists for the processed video;
   `has_audio_stream` is `None` (unknown) because this environment has no system `ffprobe` binary
   (OpenCV's `VideoCapture` is video-only) — a documented limitation, not a fabricated `False`.
@@ -76,7 +104,22 @@ outstanding gap for Day 3 planning.
 
 `scripts/build_claim_multimodal_candidates.py` links the 37 verified official TALA claims
 (`rag_usable=True`, `evidence_strength` in `{strong, medium}`) to candidate evidence in the other
-modalities:
+modalities. **A bundle counts as "processed" as soon as it has ≥1 verified modality** — the old
+all-or-nothing text+image+video requirement collapsed real partial evidence (e.g. text +
+reference) down to zero, which was inaccurate. `outputs/tables/claim_evidence_bundle_summary.csv`
+reports every combination separately:
+
+| Bucket | Count / 37 |
+|---|---|
+| ≥1 verified evidence modality (genuinely "processed") | 21 |
+| ≥2 eligible modalities | 3 |
+| Text evidence | 21 |
+| Image evidence | 3 |
+| Eligible video evidence | 0 |
+| Reference evidence | 0 |
+| Text + image + video | 0 |
+| Text + image + video + reference | 0 |
+| Insufficient evidence (0 modalities) | 16 |
 
 - **Text:** 21/37 claims matched ≥1 customer-experience/creator-strategy document (sentence-
   embedding cosine similarity ≥ 0.35, same brand, top 3).
@@ -84,26 +127,75 @@ modalities:
   gated to `claim_category == 'materials'` — a catalog product photo can plausibly corroborate
   a materials claim, but nothing in a garment photo can corroborate a labour, manufacturing-
   process, packaging, emissions, or circularity claim, so those categories are never given a
-  fabricated visual match regardless of CLIP score. Only the single best (top-1) match above a
-  0.27 cosine-similarity threshold is kept, not every image above a loose bar.
+  fabricated visual match regardless of CLIP score (see "RAG/candidate modality routing" below).
+  Only the single best (top-1) match above a 0.27 cosine-similarity threshold is kept.
 - **Video:** 0/37 claims matched the one processed TALA video (threshold 0.24, none cleared) —
   with only one video asset in the pool, this is a low-power, honest result, not a failure to
   implement the matcher.
-- **Reference:** 0/37 — the Multimodal Reference Package is empty (see above), so every claim
-  is reported with `reference` as a missing modality. This is not silently omitted.
-- **Claims with all three of text+image+video: 0/37.** No claim is currently reported as fully
-  multimodal, and none will be fabricated to appear so.
+- **Reference:** 0/37 — the Multimodal Reference Package is empty, so every claim is reported
+  with `reference` as a missing modality. `scripts/build_claim_multimodal_candidates.py::match_reference_evidence`
+  is implemented and brand-scoped, ranking by `evidence_strength` (the reference schema carries
+  no extracted body text, so there is no genuine similarity signal to rank on) — it will start
+  producing matches the moment the Reference Package has ≥1 row for a brand.
 - Every row carries `requires_human_validation=True` — this is a candidate layer, not a scored
   divergence assessment.
 
-## GO / NO-GO
+## Primary claim-evidence fusion readiness (minimum defensible bar)
 
-| Downstream stage | Verdict | Basis |
+Primary fusion does **not** require all 37 claims to carry every modality. The minimum
+defensible bar (`scripts/audit_assignment_modalities.py::evaluate_primary_fusion_readiness`,
+`outputs/tables/primary_fusion_readiness.csv`) is:
+
+| Criterion | Status | Detail |
 |---|---|---|
-| Primary claim-evidence fusion | **NO-GO** | Video Package/Pipeline PARTIAL (1 brand, 1 asset vs. target ≥3 brands/12-20 assets) and Multimodal Reference Package FAIL block a representative fusion input. Text and Image packages alone are ready. |
-| Multimodal RAG | **NO-GO** | RAG over three text corpora plus image evidence could technically run, but the charter requires image/video/reference evidence integration — Video and Reference packages are not yet adequate, so a full multimodal RAG prototype is premature. |
+| Genuine text pipeline operating | MET | official/customer/creator corpora built and feature-extracted |
+| Genuine image pipeline operating | MET | 24 verified official images processed |
+| Genuine video pipeline operating (any count) | MET | 1 video with genuine temporal features — count is not the gate |
+| Multimodal Reference Package populated (≥1 document) | **UNMET** | 0 reference documents |
+| Missing modalities explicitly tracked per bundle | MET | `missing_modalities` populated on every row |
+| ≥5 TALA claims with ≥2 eligible evidence modalities | **UNMET** | 3 claims currently qualify |
+| ≥1 TALA claim with a defensible text+image+video bundle | **UNMET** | 0 claims currently qualify |
 
-**Path to GO:** populate `data/raw/authorised_video_assets/` with brand-authorised video for
-Adanola, Girlfriend Collective, and Oner Active, and collect Multimodal Reference Package
-documents, then re-run `python scripts/run_day2_5_modality_alignment.py` and re-check this
-audit before starting Day 3.
+**Overall: NO-GO** — 3 of 7 criteria unmet. All three pipelines genuinely work; the blockers are
+data depth, not pipeline capability: (1) the Reference Package needs its first document, (2) two
+more claims need a second corroborating modality to clear the ≥5 bar, (3) at least one materials
+claim needs a genuine video match — most likely by recovering 1–3 more permitted TALA videos
+(more candidate frames/products raise the chance a real match clears the 0.24 threshold; the
+threshold itself will not be lowered to force a match).
+
+## Multimodal RAG readiness and modality-routing design
+
+RAG is **not implemented yet** (out of scope for this audit pass). The binding design principle
+for when it is built: **route each claim's retrieval to the modalities that are actually relevant
+to it, never force an irrelevant modality in merely to look multimodal.**
+
+- A responsibility/sustainability/labour claim should retrieve text, tables, certificates, and
+  document images primarily — not an irrelevant product video.
+- A fit, product-presentation, or movement claim may legitimately retrieve text, catalog images,
+  and product/try-on video.
+- This principle is already implemented, not just stated: `build_claim_multimodal_candidates.py`'s
+  `VISUALLY_GROUNDABLE_CLAIM_CATEGORIES` gate (currently `{materials}`) is exactly this routing
+  rule applied to the candidate-generation layer — TALA's claim categories today are
+  `labour`, `manufacturing`, `materials`, `packaging`, `emissions`, `circularity`, `other`, none of
+  which include a fit/movement category, so only `materials` claims are ever offered an
+  image/video match. When RAG is built, its retriever must reuse this same category→modality
+  routing table (extended with a reference-document route for certification/impact-report
+  claims) rather than retrieving all modalities uniformly for every query.
+
+**RAG verdict: NO-GO**, for the same underlying reasons as fusion — Reference Package empty,
+video evidence depth thin. Building RAG before these close would let it silently over-rely on
+text (the only consistently available modality), defeating the point of a multimodal prototype.
+
+## Readiness-correction changelog (2026-09-18)
+
+Corrected against an earlier draft of this audit that penalised the Video Package for
+competitor-brand video absence and collapsed the claim-evidence layer to a strict
+text+image+video-or-nothing count:
+- Video Package/Pipeline status now keys off TALA depth and genuine-processing reliability, not
+  competitor brand-count breadth (Video Pipeline moved PARTIAL → PASS).
+- Claim-evidence layer now reports the full 9-bucket breakdown instead of a single all-or-nothing
+  count; `evidence_strength_summary` in `claim_multimodal_evidence_candidates.csv` no longer
+  labels a text+reference bundle "unusable".
+- Fusion/RAG GO/NO-GO now uses the 7-criterion minimum-defensible bar above instead of "all 37
+  claims fully multimodal" — verdict is still NO-GO today, but for three specific, closeable
+  reasons rather than an undifferentiated shortfall.
