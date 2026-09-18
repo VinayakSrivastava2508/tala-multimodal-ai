@@ -15,7 +15,8 @@
       "PowerShell(cd \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\"; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; .\\\\.venv\\\\Scripts\\\\python scripts/validate_data.py 2>&1)",
       "PowerShell(cd \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\"; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; .\\\\.venv\\\\Scripts\\\\python scripts/clean_day1_data.py 2>&1)",
       "Bash(python -c ' *)",
-      "Bash(.venvScriptspython.exe -c ' *)"
+      "Bash(.venvScriptspython.exe -c ' *)",
+      "Bash(.\\\\.venv\\\\Scripts\\\\python.exe -c \"import bs4; print\\('bs4 ok'\\); import requests; print\\('requests ok'\\)\")"
     ]
   }
 }

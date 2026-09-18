@@ -143,7 +143,7 @@ schemas:
       source_platform:    { dtype: str,    required: true }
       collection_date:    { dtype: date,   required: true }
       collected_by:       { dtype: str,    required: true }
-      evidence_type:      { dtype: str,    required: true,  values: [competitor_benchmark] }
+      evidence_type:      { dtype: str,    required: true,  values: [competitor_benchmark, focal_platform_baseline] }
       notes:              { dtype: str,    required: false }
       citation_ready:     { dtype: bool,   required: false, default: false }
       source_id:          { dtype: str,    required: true }
