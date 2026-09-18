@@ -38,10 +38,9 @@ chromadb>=0.4.0
 Pillow>=10.0.0
 opencv-python>=4.8.0
 
-# Optional: Hugging Face transformers (for CLIP, ViT)
-# transformers>=4.35.0
-# torch>=2.0.0          # CPU-only; uncomment if GPU available
-# torchvision>=0.15.0
+# Hugging Face transformers (CLIP image embeddings, src/image_features.py) -- CPU-only, pretrained only
+transformers>=4.35.0
+torch>=2.0.0
 
 # Word clouds / EDA extras
 wordcloud>=1.9.0

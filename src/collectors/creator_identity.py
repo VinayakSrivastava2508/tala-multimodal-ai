@@ -454,6 +454,71 @@ def classify_partnership(
             "partnership_confidence": "low", "partnership_inferred": False}
 
 
+# ── Partnership reassessment from full title+description (Day 2 Task 2B Part C) ─
+
+def reassess_partnership(
+    video_title: str = "",
+    video_description: str = "",
+    caption_or_description: str = "",
+    personalised_code: str = "",
+) -> Dict[str, object]:
+    """Reassess partnership_type from the FULL video title + description (not a
+    truncated caption snippet), against explicit disclosure phrases only
+    (configs/feature_rules.yaml::partnership_disclosure_phrases). A bare brand-name
+    mention is never sufficient -- this function doesn't even look at the brand
+    name, only disclosure language.
+
+    Returns revised_partnership_type, partnership_evidence_text (the matched
+    phrase in context), partnership_rule_trigger (the matched phrase itself),
+    partnership_confidence (high/medium/low).
+    """
+    from src.text_features import load_feature_rules  # lazy import, avoids cycle at module load
+
+    phrases = load_feature_rules()["partnership_disclosure_phrases"]
+    text = " ".join(
+        t for t in (video_title, video_description, caption_or_description) if t and str(t).lower() != "nan"
+    )
+    text_l = text.lower()
+
+    # precedence: paid > gifted > ambassador > affiliate > founder_or_employee
+    for category in ("paid_sponsorship", "gifted", "ambassador", "affiliate", "founder_or_employee"):
+        for phrase in phrases[category]:
+            idx = text_l.find(phrase.lower())
+            if idx != -1:
+                start = max(0, idx - 40)
+                end = min(len(text), idx + len(phrase) + 40)
+                return {
+                    "revised_partnership_type": category,
+                    "partnership_evidence_text": text[start:end].strip(),
+                    "partnership_rule_trigger": phrase,
+                    "partnership_confidence": "high",
+                }
+
+    if personalised_code and str(personalised_code).strip():
+        return {
+            "revised_partnership_type": "affiliate",
+            "partnership_evidence_text": f"personalised_code={personalised_code}",
+            "partnership_rule_trigger": "personalised_code_present",
+            "partnership_confidence": "high",
+        }
+
+    if _ORGANIC_HINT_RX.search(text):
+        m = _ORGANIC_HINT_RX.search(text)
+        return {
+            "revised_partnership_type": "organic",
+            "partnership_evidence_text": f"no disclosure phrase found; content framing: {m.group(0)!r}",
+            "partnership_rule_trigger": "",
+            "partnership_confidence": "medium",
+        }
+
+    return {
+        "revised_partnership_type": "unclear",
+        "partnership_evidence_text": "",
+        "partnership_rule_trigger": "",
+        "partnership_confidence": "low",
+    }
+
+
 # ── Evidence strength (Part E rules) ──────────────────────────────────────────
 
 def compute_creator_evidence_strength(

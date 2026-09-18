@@ -3,11 +3,28 @@
 
 ## Project Objective
 
-This project diagnoses the gap between TALA's official brand claims and actual customer/product experience using multimodal AI, and benchmarks TALA's creator-led cross-platform strategy against three competitors (Adanola, Girlfriend Collective, Oner Active).
+This project diagnoses the gap between TALA's official brand claims and actual customer/product experience using multimodal AI (text, image, video, and reference-document evidence), and benchmarks TALA's creator-led cross-platform strategy against three competitors (Adanola, Girlfriend Collective, Oner Active).
 
 **Two core research questions:**
-1. Where does TALA's official brand narrative (quality, sustainability, inclusivity) diverge from customer experience signals (reviews, complaints, returns)?
-2. How does TALA's creator-led D2C strategy differ structurally from competitor approaches, and what signals predict brand moat durability?
+1. Where does TALA's official brand narrative (quality, sustainability, inclusivity) diverge from customer experience signals (reviews, complaints, returns), once official text, product/UGC images, video evidence, and reference documents are integrated?
+2. How does TALA's creator-led D2C strategy differ structurally from competitor approaches — described, not predicted (see [Scope Boundaries](#scope-boundaries) below)?
+
+> Full binding scope: `docs/project_charter.md`. Condensed enforcement summary: `CLAUDE.md` §9.
+
+## Scope Boundaries
+
+- **Engagement prediction is out of scope for the entire project.** No engagement
+  regression/classification, no out-of-fold predictions, no actual-vs-predicted residuals,
+  no predictive creator-performance scoring, no engagement-focused fusion. Real YouTube
+  engagement metrics are retained for **descriptive, non-causal** comparison only (medians,
+  IQRs, rates by brand/partnership-type/content-intent).
+- **A video URL, title, thumbnail, description, or engagement statistic is not a processed
+  video asset.** It is a "video lead" until genuine temporal processing (multiple sampled
+  frames, motion/scene-change features, or a transcript) has run on a locally held,
+  rights-cleared file. See `docs/assignment_alignment_audit.md` for current Image/Video
+  package status.
+- Do not call an observed brand difference a "moat" without outcome evidence — describe it
+  as an observed distinctive pattern.
 
 ## Research Framing — Read Before Analysis
 
@@ -80,22 +97,36 @@ jupyter lab
 
 ### Day 2 — Modelling & Features
 - Extract text, image, and platform features (`src/text_features.py`, `src/image_features.py`).
-- Run `02_multimodal_features_and_fusion.ipynb` (early / late / hybrid fusion).
-- Run `03_creator_strategy_and_claim_divergence.ipynb` (claim gap scoring, moat metrics).
+- Run `02_multimodal_features_and_fusion.ipynb` — text/visual feature construction, YouTube
+  metadata enrichment, revised partnership/intent classification, descriptive engagement
+  analysis, and modelling-feasibility reassessment (engagement-prediction tracks marked
+  `OUT_OF_SCOPE` — see `outputs/tables/day2_modelling_feasibility.csv`).
+
+### Day 2.5 — Modality Realignment
+- Build genuine Image and Video packages (`scripts/collect_official_product_media.py`,
+  `scripts/build_video_asset_manifest.py`, `scripts/process_video_assets.py`).
+- Run `03_video_pipeline_and_multimodal_evidence.ipynb` — modality gap audit, image/video
+  package construction, frame-level and temporal video features, claim-level multimodal
+  evidence candidates.
+- Full status: `docs/assignment_alignment_audit.md`.
 
 ### Day 3 — RAG, Evaluation & Deck
-- Build RAG pipeline across three corpora (`src/rag_pipeline.py`).
+- Build claim-evidence fusion and RAG pipeline across text/image/video/reference corpora (`src/rag_pipeline.py`, `src/fusion_models.py`).
 - Run `04_multimodal_rag_and_evaluation.ipynb`.
-- Export `outputs/` figures and tables; assemble presentation deck.
+- Export `outputs/` figures and tables; assemble presentation deck with governance/ethics recommendations.
 
 ## Notebook Execution Order
 
 | # | Notebook | Purpose |
 |---|----------|---------|
 | 01 | `01_data_compilation_and_eda.ipynb` | Load, validate, and explore all datasets |
-| 02 | `02_multimodal_features_and_fusion.ipynb` | Multimodal feature extraction and fusion |
-| 03 | `03_creator_strategy_and_claim_divergence.ipynb` | Creator benchmarking and claim-experience gap |
+| 02 | `02_multimodal_features_and_fusion.ipynb` | Text/visual feature extraction, YouTube enrichment, descriptive engagement |
+| 03 | `03_video_pipeline_and_multimodal_evidence.ipynb` | Image/video package construction, temporal features, claim-evidence candidates |
 | 04 | `04_multimodal_rag_and_evaluation.ipynb` | RAG pipeline construction and evaluation |
+
+`03_creator_strategy_and_claim_divergence.ipynb` is scaffolded for the later claim-alignment
+scoring task (not yet built — gated on `03_video_pipeline_and_multimodal_evidence.ipynb`'s
+evidence candidates).
 
 ## Setup
 

@@ -23,6 +23,12 @@ EXACT_FILENAME_SCHEMA: Dict[str, str] = {
     "creator_posts_enriched":      "creator_posts_enriched",
     "platform_strategy_enriched":  "platform_strategy_enriched",
     "hydrated_sources":              "hydrated_sources",
+    "image_assets":                    "image_assets",
+    "video_assets":                    "video_assets",
+    "video_frame_features":            "video_frame_features",
+    "video_level_features":            "video_level_features",
+    "multimodal_reference_assets":    "multimodal_reference_assets",
+    "claim_multimodal_evidence_candidates": "claim_multimodal_evidence_candidates",
 }
 
 # Legacy filename PREFIX inference for Day 1 files. Only consulted when no exact
@@ -35,6 +41,12 @@ FILENAME_TO_SCHEMA: Dict[str, str] = {
     "competitor_platforms":   "competitor_platforms",
     "press_reddit_sources":   "press_reddit_sources",
     "claim_assessments":      "claim_assessments",
+    "image_assets":                    "image_assets",
+    "video_assets":                    "video_assets",
+    "video_frame_features":            "video_frame_features",
+    "video_level_features":            "video_level_features",
+    "multimodal_reference_assets":    "multimodal_reference_assets",
+    "claim_multimodal_evidence_candidates": "claim_multimodal_evidence_candidates",
 }
 
 # Provenance fields every dataset must carry
@@ -84,6 +96,30 @@ def guess_schema(filename: str) -> str | None:
 # ── Core field validation ──────────────────────────────────────────────────────
 
 FAIL_PREFIXES = ("MISSING", "NULL", "INVALID", "BELOW", "ABOVE", "DUPLICATE", "SEMANTIC")
+
+
+def assert_no_duplicate_ids(df: pd.DataFrame, id_col: str, label: str = "") -> None:
+    """Raise ValueError if `id_col` contains any duplicate value. Used as a hard
+    gate before writing a modelling table -- a feature table must have exactly one
+    row per record id."""
+    dup_n = int(df[id_col].duplicated().sum())
+    if dup_n:
+        raise ValueError(f"{label or id_col}: {dup_n} duplicate {id_col} value(s) -- refusing to write")
+
+
+def assert_evidence_strength_allowed(
+    df: pd.DataFrame, allowed: tuple = ("strong", "medium"), col: str = "evidence_strength", label: str = "",
+) -> None:
+    """Raise ValueError if any row's `col` is outside `allowed`. Used as a hard
+    gate so weak/unusable evidence can never enter a modelling/feature table."""
+    if col not in df.columns:
+        return
+    bad = ~df[col].isin(allowed)
+    if bad.any():
+        raise ValueError(
+            f"{label or col}: {int(bad.sum())} row(s) have {col} outside {allowed} -- "
+            "weak/unusable evidence must never enter the modelling table"
+        )
 
 
 def validate(df: pd.DataFrame, schema_name: str) -> Tuple[bool, list[str]]:

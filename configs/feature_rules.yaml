@@ -1,0 +1,287 @@
+# Deterministic keyword/regex rules for interpretable text-feature indicators.
+# Used by src/text_features.py. Edit keyword lists here, not in code, so the rules
+# stay auditable and separate from extraction logic (CLAUDE.md Rule 4: no hardcoded
+# schema/field values in module code).
+
+# ── Creator-strategy indicators ───────────────────────────────────────────────
+creator_indicators:
+  disclosure:
+    - "#ad"
+    - "paid partnership"
+    - "paid promotion"
+    - "#gifted"
+    - "gifted"
+    - "#spon"
+    - "sponsored"
+    - "ambassador"
+    - "affiliate"
+  discount_code:
+    - "discount code"
+    - "promo code"
+    - "use my code"
+    - "use code"
+    - "% off"
+    - "coupon"
+  product_mention:
+    - "leggings"
+    - "sports bra"
+    - "shorts"
+    - "hoodie"
+    - "joggers"
+    - "activewear"
+    - "gym wear"
+    - "collection"
+    - "set"
+    - "loungewear"
+  call_to_action:
+    - "link in bio"
+    - "shop now"
+    - "swipe up"
+    - "click the link"
+    - "check out"
+    - "subscribe"
+    - "comment below"
+    - "dm me"
+  launch:
+    - "new collection"
+    - "new drop"
+    - "new arrival"
+    - "just launched"
+    - "launching"
+    - "pre-order"
+    - "coming soon"
+  community:
+    - "community"
+    - "together"
+    - "our team"
+    - "join us"
+    - "you guys"
+    - "family"
+  sustainability_responsibility:
+    - "sustainable"
+    - "sustainability"
+    - "recycled"
+    - "eco"
+    - "ethical"
+    - "carbon"
+    - "environment"
+    - "responsible"
+    - "planet"
+  quality_fit:
+    - "quality"
+    - "fabric"
+    - "fit"
+    - "sizing"
+    - "true to size"
+    - "runs small"
+    - "runs large"
+    - "comfortable"
+    - "material"
+
+# ── Customer-experience term categories (frequency counted, not just presence) ─
+customer_experience_terms:
+  quality:
+    - "quality"
+    - "fabric"
+    - "material"
+    - "pilling"
+    - "cheap"
+    - "durable"
+    - "sturdy"
+    - "flimsy"
+    - "see-through"
+  fit_sizing:
+    - "size"
+    - "sizing"
+    - "fit"
+    - "tight"
+    - "loose"
+    - "runs small"
+    - "runs large"
+    - "true to size"
+    - "petite"
+  durability:
+    - "durable"
+    - "lasted"
+    - "worn"
+    - "washed"
+    - "fading"
+    - "stretched"
+    - "held up"
+    - "fallen apart"
+    - "seam"
+    - "bobbling"
+  delivery:
+    - "delivery"
+    - "shipping"
+    - "arrived"
+    - "dispatch"
+    - "wait"
+    - "parcel"
+    - "tracking"
+    - "courier"
+  returns_refunds:
+    - "return"
+    - "refund"
+    - "exchange"
+    - "money back"
+    - "credit"
+    - "sent back"
+  customer_service:
+    - "customer service"
+    - "support"
+    - "help"
+    - "contact"
+    - "response"
+    - "reply"
+    - "staff"
+  price_value:
+    - "price"
+    - "expensive"
+    - "affordable"
+    - "worth"
+    - "value"
+    - "cost"
+  responsibility:
+    - "sustainable"
+    - "recycled"
+    - "ethical"
+    - "eco"
+    - "green"
+    - "carbon"
+    - "environment"
+    - "responsible"
+
+# ── Official-claim indicators ─────────────────────────────────────────────────
+official_claim_indicators:
+  certification:
+    - "certified"
+    - "gots"
+    - "grs"
+    - "b corp"
+    - "bcorp"
+    - "bluesign"
+    - "oeko-tex"
+    - "accredited"
+  material:
+    - "recycled"
+    - "organic"
+    - "regenerative"
+    - "natural fibre"
+    - "fabric"
+    - "yarn"
+    - "plastic bottle"
+    - "repreve"
+    - "tencel"
+    - "nylon"
+    - "spandex"
+  geography:
+    - "uk"
+    - "europe"
+    - "portugal"
+    - "italy"
+    - "turkey"
+    - "china"
+    - "vietnam"
+    - "bangladesh"
+    - "made in"
+    - "factory in"
+
+# ── Partnership disclosure phrases (Day 2 Task 2B Part C) ─────────────────────
+# Used by src/collectors/creator_identity.py::reassess_partnership() against the
+# FULL video title + description (not just a truncated caption snippet). Grouped
+# by the controlled-vocabulary category each phrase is explicit evidence for.
+# A bare brand-name mention is NEVER sufficient on its own -- only these phrases.
+partnership_disclosure_phrases:
+  paid_sponsorship:
+    - "paid promotion"
+    - "paid partnership"
+    - "paid ad"
+    - "#ad"
+    - "#sponsored"
+    - "sponsored by"
+    - "for sponsoring"
+    - "this video is sponsored"
+  gifted:
+    - "#gifted"
+    - "gifted"
+    - "pr product"
+    - "press sample"
+    - "c/o"
+    - "sent to me"
+    - "sent by"
+  ambassador:
+    - "ambassador"
+    - "brand rep"
+  affiliate:
+    - "affiliate link"
+    - "affiliate"
+    - "commission disclosure"
+    - "tracked affiliate url"
+    - "earn a commission"
+    - "use my code"
+    - "discount code"
+    - "promo code"
+  founder_or_employee:
+    - "founder"
+    - "co-founder"
+    - "co founder"
+    - "our team"
+    - "i work at"
+    - "i work for"
+
+# ── Content-intent weak-label taxonomy keywords (see docs/content_intent_codebook.md) ─
+content_intent_keywords:
+  awareness:
+    - "meet"
+    - "introducing"
+    - "discover"
+    - "did you know"
+  product_demonstration:
+    - "try on"
+    - "try-on"
+    - "unboxing"
+    - "haul"
+    - "review"
+    - "honest review"
+  product_launch:
+    - "new collection"
+    - "new drop"
+    - "new arrival"
+    - "just launched"
+    - "launching"
+    - "pre-order"
+  conversion:
+    - "shop now"
+    - "link in bio"
+    - "discount code"
+    - "promo code"
+    - "sale"
+  social_proof:
+    - "testimonial"
+    - "love this"
+    - "happy customer"
+    - "my honest opinion"
+  community:
+    - "community"
+    - "together"
+    - "join us"
+    - "our team"
+  education:
+    - "how to"
+    - "guide"
+    - "tip"
+    - "what is"
+    - "why"
+  responsibility:
+    - "sustainable"
+    - "sustainability"
+    - "recycled"
+    - "ethical"
+    - "carbon"
+    - "environment"
+  review:
+    - "review"
+    - "honest"
+    - "worth the hype"
+    - "worth it"

@@ -330,3 +330,186 @@ schemas:
       citation_ready:         { dtype: bool,  required: false, default: false }
       source_id:              { dtype: str,   required: true }
       synthetic:              { dtype: bool,  required: true,  default: false }
+
+  # ── Day 2.5 schemas: Image / Video / Reference packages ───────────────────────
+  # Assignment-alignment charter (CLAUDE.md §9, docs/project_charter.md). These
+  # describe genuine media-asset manifests, distinct from any Day 2 corpus/creator
+  # schema above. A row here is a MEDIA ASSET (image file, video file, or
+  # candidate-evidence bundle), not a text document or a platform URL pointer.
+
+  image_assets:
+    description: >
+      Image Package manifest (scripts/collect_official_product_media.py,
+      data/interim/day2_5/image_assets.csv). One row per acquired or catalogued
+      image. rights_or_access_basis is recorded separately from evidence_strength
+      -- public availability does not by itself imply reuse rights.
+    fields:
+      asset_id:              { dtype: str,  required: true }
+      brand:                  { dtype: str,  required: true }
+      product_name:            { dtype: str,  required: false }
+      product_category:        { dtype: str,  required: false }
+      image_role:              { dtype: str,  required: true,
+        values: [official_catalog, product_detail, permitted_ugc, creator_thumbnail, website_ui, packaging, material_or_label, other] }
+      source_url:              { dtype: str,  required: true }
+      source_page_url:        { dtype: str,  required: false }
+      local_path:              { dtype: str,  required: false }
+      rights_or_access_basis: { dtype: str,  required: true,
+        values: [official_direct_public_asset, open_license, group_owned, user_authorised, platform_metadata_only, unknown] }
+      retrieval_method:        { dtype: str,  required: true }
+      retrieved_at:            { dtype: str,  required: true }
+      width:                    { dtype: int,  required: false }
+      height:                  { dtype: int,  required: false }
+      file_hash:                { dtype: str,  required: false }
+      evidence_strength:      { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      processing_status:      { dtype: str,  required: true,  values: [downloaded, discovered_not_downloaded, failed, skipped] }
+      provenance_note:        { dtype: str,  required: false }
+
+  video_assets:
+    description: >
+      Video Package manifest (scripts/build_video_asset_manifest.py,
+      data/interim/day2_5/video_assets.csv). A row with
+      rights_or_access_basis=platform_metadata_only is a VIDEO LEAD, not a
+      processed video asset -- processing_status must be 'metadata_only' for such
+      rows and can never be 'processed'. Only official_direct_public_asset,
+      open_license, group_owned, or user_authorised rows may have
+      processing_status=processed.
+    fields:
+      video_asset_id:          { dtype: str,  required: true }
+      brand:                    { dtype: str,  required: true }
+      creator_handle:          { dtype: str,  required: false }
+      product_name:            { dtype: str,  required: false }
+      product_category:        { dtype: str,  required: false }
+      video_role:              { dtype: str,  required: true,
+        values: [official_campaign, product_demonstration, try_on, unboxing, review, durability_test, wash_test, styling, responsibility_communication, other] }
+      source_platform:        { dtype: str,  required: true }
+      source_url:              { dtype: str,  required: true }
+      asset_url:                { dtype: str,  required: false }
+      local_path:              { dtype: str,  required: false }
+      rights_or_access_basis: { dtype: str,  required: true,
+        values: [official_direct_public_asset, open_license, group_owned, user_authorised, platform_metadata_only, unknown] }
+      access_status:            { dtype: str,  required: true,
+        values: [accessible, restricted, unavailable] }
+      retrieval_method:        { dtype: str,  required: true }
+      retrieved_at:            { dtype: str,  required: true }
+      duration_seconds:        { dtype: float, required: false }
+      file_hash:                { dtype: str,  required: false }
+      transcript_available:    { dtype: bool, required: true,  values: [true, false] }
+      processing_status:      { dtype: str,  required: true,
+        values: [processed, metadata_only, failed, skipped] }
+      evidence_strength:      { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      provenance_note:        { dtype: str,  required: false }
+
+  video_frame_features:
+    description: >
+      Frame-level features for genuinely processed video assets only
+      (src/video_features.py, data/processed/video_frame_features.csv). One row
+      per sampled frame. A video_asset_id here must reference a video_assets row
+      with processing_status=processed.
+    fields:
+      video_asset_id:          { dtype: str,  required: true }
+      frame_id:                { dtype: str,  required: true }
+      frame_index:              { dtype: int,  required: true }
+      timestamp_seconds:        { dtype: float, required: true }
+      sample_position:          { dtype: str,  required: true,
+        values: [opening, quarter, half, three_quarter, closing, interval] }
+      local_frame_path:        { dtype: str,  required: false }
+      brightness:                { dtype: float, required: false }
+      contrast:                  { dtype: float, required: false }
+      saturation:                { dtype: float, required: false }
+      dominant_color_group:    { dtype: str,  required: false }
+      edge_density:              { dtype: float, required: false }
+      perceptual_hash:          { dtype: str,  required: false }
+      ocr_text:                  { dtype: str,  required: false }
+      clip_embedding_available: { dtype: bool, required: true, values: [true, false] }
+      clip_embedding_file_hash: { dtype: str,  required: false }
+      product_semantic_similarity: { dtype: float, required: false, min: -1.0, max: 1.0 }
+
+  video_level_features:
+    description: >
+      Video-level technical metadata + aggregated/temporal features
+      (src/video_features.py, data/processed/video_level_features.csv). One row
+      per genuinely processed video asset.
+    fields:
+      video_asset_id:              { dtype: str,  required: true }
+      duration_seconds:            { dtype: float, required: true }
+      width:                        { dtype: int,  required: false }
+      height:                      { dtype: int,  required: false }
+      fps:                          { dtype: float, required: false }
+      frame_count:                  { dtype: int,  required: false }
+      has_audio_stream:            { dtype: bool, required: false, values: [true, false] }
+      aspect_ratio:                  { dtype: float, required: false }
+      n_sampled_frames:            { dtype: int,  required: true }
+      mean_brightness:              { dtype: float, required: false }
+      brightness_variance:          { dtype: float, required: false }
+      mean_contrast:                { dtype: float, required: false }
+      contrast_variance:            { dtype: float, required: false }
+      mean_saturation:              { dtype: float, required: false }
+      saturation_variance:          { dtype: float, required: false }
+      mean_edge_density:            { dtype: float, required: false }
+      edge_density_variance:        { dtype: float, required: false }
+      mean_inter_frame_perceptual_distance: { dtype: float, required: false }
+      clip_embedding_change_mean:  { dtype: float, required: false }
+      scene_change_count_proxy:    { dtype: int,  required: false }
+      motion_intensity_proxy:      { dtype: float, required: false }
+      visual_consistency_score:    { dtype: float, required: false }
+      pct_frames_product_similar:  { dtype: float, required: false, min: 0.0, max: 1.0 }
+      opening_to_closing_visual_change: { dtype: float, required: false }
+      mean_frame_embedding_file_hash: { dtype: str, required: false }
+      embedding_std:                { dtype: float, required: false }
+      max_semantic_similarity:      { dtype: float, required: false, min: -1.0, max: 1.0 }
+      transcript_text:              { dtype: str,  required: false }
+      transcript_method:            { dtype: str,  required: false,
+        values: [supplied, official_caption, permitted_public_transcript, local_asr, none] }
+      transcript_language:          { dtype: str,  required: false }
+      transcript_confidence_or_status: { dtype: str, required: false }
+      transcript_file:              { dtype: str,  required: false }
+      transcript_provenance:        { dtype: str,  required: false }
+
+  multimodal_reference_assets:
+    description: >
+      Multimodal Reference Package manifest -- impact/responsibility reports,
+      certifications, material specs, sizing/fabric-care guidance, return
+      policies, brand visual guidance.
+    fields:
+      reference_id:            { dtype: str,  required: true }
+      brand:                    { dtype: str,  required: true }
+      document_type:            { dtype: str,  required: true,
+        values: [impact_report, certification, material_spec, sizing_guidance, fabric_care_guidance, return_policy, brand_visual_guidance, other] }
+      title:                    { dtype: str,  required: false }
+      source_url:              { dtype: str,  required: true }
+      local_path:              { dtype: str,  required: false }
+      rights_or_access_basis: { dtype: str,  required: true,
+        values: [official_direct_public_asset, open_license, group_owned, user_authorised, platform_metadata_only, unknown] }
+      retrieved_at:            { dtype: str,  required: true }
+      file_hash:                { dtype: str,  required: false }
+      evidence_strength:      { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      provenance_note:        { dtype: str,  required: false }
+
+  claim_multimodal_evidence_candidates:
+    description: >
+      Candidate (not yet scored) links between an official claim and
+      text/image/video/reference evidence
+      (scripts/build_claim_multimodal_candidates.py,
+      data/processed/claim_multimodal_evidence_candidates.csv). Does not classify
+      alignment/divergence -- that is a later fusion/scoring task. A claim may
+      legitimately have missing modalities; do not fabricate a match merely to
+      fill a field.
+    fields:
+      evidence_bundle_id:          { dtype: str,  required: true }
+      claim_id:                    { dtype: str,  required: true }
+      claim_text:                  { dtype: str,  required: true }
+      claim_category:              { dtype: str,  required: false }
+      product_name:                { dtype: str,  required: false }
+      product_category:            { dtype: str,  required: false }
+      text_evidence_ids:          { dtype: str,  required: false }
+      image_asset_ids:            { dtype: str,  required: false }
+      video_asset_ids:            { dtype: str,  required: false }
+      reference_document_ids:    { dtype: str,  required: false }
+      text_similarity:            { dtype: float, required: false, min: -1.0, max: 1.0 }
+      image_similarity:            { dtype: float, required: false, min: -1.0, max: 1.0 }
+      video_similarity:            { dtype: float, required: false, min: -1.0, max: 1.0 }
+      evidence_strength_summary:  { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      missing_modalities:          { dtype: str,  required: true }
+      candidate_generation_method: { dtype: str,  required: true }
+      requires_human_validation:  { dtype: bool, required: true, values: [true, false] }
+      provenance_note:            { dtype: str,  required: false }
