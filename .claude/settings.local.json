@@ -12,7 +12,10 @@
       "Bash(code *)",
       "Bash(.venv\\\\Scripts\\\\pip install *)",
       "PowerShell(cd \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\"; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; .\\\\.venv\\\\Scripts\\\\python scripts/collect_day1_public_data.py 2>&1)",
-      "PowerShell(cd \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\"; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; .\\\\.venv\\\\Scripts\\\\python scripts/validate_data.py 2>&1)"
+      "PowerShell(cd \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\"; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; .\\\\.venv\\\\Scripts\\\\python scripts/validate_data.py 2>&1)",
+      "PowerShell(cd \"D:\\\\MAS Assignment\\\\tala-multimodal-ai\"; [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; .\\\\.venv\\\\Scripts\\\\python scripts/clean_day1_data.py 2>&1)",
+      "Bash(python -c ' *)",
+      "Bash(.venvScriptspython.exe -c ' *)"
     ]
   }
 }
