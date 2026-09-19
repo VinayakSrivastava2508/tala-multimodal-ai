@@ -44,7 +44,9 @@ CLAIMS_PATH = PROJECT_ROOT / "data" / "interim" / "day2" / "claims_expanded.csv"
 CUSTOMER_CORPUS_PATH = PROJECT_ROOT / "data" / "corpora" / "customer_experience_corpus.csv"
 CREATOR_CORPUS_PATH = PROJECT_ROOT / "data" / "corpora" / "creator_strategy_corpus.csv"
 IMAGE_ASSETS_PATH = PROJECT_ROOT / "data" / "interim" / "day2_5" / "image_assets.csv"
-VIDEO_ASSETS_PATH = PROJECT_ROOT / "data" / "interim" / "day2_5" / "video_assets.csv"
+VIDEO_ASSETS_PATH_DAY2_5 = PROJECT_ROOT / "data" / "interim" / "day2_5" / "video_assets.csv"
+VIDEO_ASSETS_PATH_EXPANDED = PROJECT_ROOT / "data" / "interim" / "day2_6" / "video_assets_expanded.csv"
+VIDEO_ASSETS_PATH = VIDEO_ASSETS_PATH_EXPANDED if VIDEO_ASSETS_PATH_EXPANDED.exists() else VIDEO_ASSETS_PATH_DAY2_5
 VIDEO_LEVEL_FEATURES_PATH = PROJECT_ROOT / "data" / "processed" / "video_level_features.csv"
 REFERENCE_ASSETS_PATH = PROJECT_ROOT / "data" / "interim" / "day2_6" / "multimodal_reference_assets.csv"
 REFERENCE_CHUNKS_PATH = PROJECT_ROOT / "data" / "processed" / "reference_document_chunks.csv"
@@ -255,26 +257,94 @@ def match_reference_evidence(
     return matches, detail_rows
 
 
+# Day 2.6B Part G: a product video/image may support appearance, presentation,
+# movement, styling, visible design/construction, or expressly demonstrated
+# functional behaviour. It may NEVER, by itself, establish durability,
+# long-term quality, wash performance, emissions, labour conditions, ethical
+# sourcing, or certification status -- so visual evidence is only ever offered
+# for claim categories where a photo/video is a plausible witness at all.
+# (Today that is 'materials' only -- none of TALA's other claim categories
+# describe visible appearance/movement, so the gate correctly excludes them.)
+VIDEO_INELIGIBLE_CLAIM_CATEGORIES = {"labour", "manufacturing", "packaging", "emissions", "circularity"}
+
+
 def match_visual_evidence(
-    claims: pd.DataFrame, brand: str, embeddings: dict[str, np.ndarray], threshold: float
-) -> dict[str, list[tuple[str, float]]]:
-    """Top-1 best match only, above threshold, and only for claim categories a
-    product photo could plausibly corroborate (see VISUALLY_GROUNDABLE_CLAIM_CATEGORIES)."""
+    claims: pd.DataFrame, brand: str, embeddings: dict[str, np.ndarray], threshold: float,
+    asset_metadata: dict[str, dict] | None = None, modality: str = "image",
+) -> tuple[dict[str, list[tuple[str, float]]], list[dict]]:
+    """Part G hierarchical matching: (1) exact product, (2) exact product
+    handle, (3) verified product category, (4) exact material, (5) claim
+    category with semantic confirmation (CLIP text-image similarity, top-1,
+    above threshold). Tiers 1-4 require product-linked claim/asset metadata
+    (`product_name`/`product_category`/`material`) -- when claims carry no
+    product linkage (the current TALA claim set is brand-level, not
+    product-linked), those tiers structurally never fire and matching falls
+    through to tier 5, which is never fabricated to compensate.
+
+    Returns ({claim_id: [(asset_id, score), ...]}, [match_detail_row, ...]).
+    """
+    asset_metadata = asset_metadata or {}
     matches: dict[str, list[tuple[str, float]]] = {cid: [] for cid in claims["claim_id"]}
+    details: list[dict] = []
     if not embeddings or not clip_is_available():
-        return matches
+        return matches, details
     ids = list(embeddings.keys())
+
     for _, claim_row in claims[claims["brand"] == brand].iterrows():
-        if claim_row.get("claim_category") not in VISUALLY_GROUNDABLE_CLAIM_CATEGORIES:
+        category = claim_row.get("claim_category")
+        claim_id = claim_row["claim_id"]
+
+        if modality == "video" and category in VIDEO_INELIGIBLE_CLAIM_CATEGORIES:
+            continue  # a video can never establish this category of claim by itself
+        if category not in VISUALLY_GROUNDABLE_CLAIM_CATEGORIES:
             continue
-        text_emb = get_clip_text_embedding(claim_row["claim_text"])
-        if text_emb is None:
-            continue
-        scored = [(aid, round(cosine_similarity(text_emb, embeddings[aid]), 4)) for aid in ids]
-        scored.sort(key=lambda t: -t[1])
-        best = scored[:IMAGE_VIDEO_TOP_K]
-        matches[claim_row["claim_id"]] = [(aid, s) for aid, s in best if s >= threshold]
-    return matches
+
+        claim_product = str(claim_row.get("product_name") or "")
+        claim_category_val = str(claim_row.get("product_category") or "")
+        claim_material = str(claim_row.get("material") or "")
+
+        # Tier 1: exact product name
+        tier1 = [aid for aid in ids if claim_product and asset_metadata.get(aid, {}).get("product_name") == claim_product]
+        # Tier 2: exact product handle
+        tier2 = [aid for aid in ids if claim_product and asset_metadata.get(aid, {}).get("product_handle") == claim_product]
+        # Tier 3: verified product category
+        tier3 = [aid for aid in ids if claim_category_val and asset_metadata.get(aid, {}).get("product_category") == claim_category_val]
+        # Tier 4: exact material
+        tier4 = [aid for aid in ids if claim_material and asset_metadata.get(aid, {}).get("material") == claim_material]
+
+        for tier_name, tier_ids in (("exact_product", tier1), ("exact_product_handle", tier2),
+                                     ("verified_product_category", tier3), ("exact_material", tier4)):
+            if tier_ids:
+                aid = tier_ids[0]
+                matches[claim_id] = [(aid, 1.0)]
+                details.append({
+                    "claim_id": claim_id, "asset_id": aid, "modality": modality, "match_method": tier_name,
+                    "match_score": 1.0, "category_gate_passed": True,
+                    "match_explanation": f"{tier_name} match on product-linked metadata",
+                    "evidence_eligibility": "presentation_only" if modality == "video" else "visual_evidence",
+                    "requires_human_validation": True,
+                })
+                break
+        else:
+            # Tier 5: category-gated semantic match
+            text_emb = get_clip_text_embedding(claim_row["claim_text"])
+            if text_emb is None:
+                continue
+            scored = [(aid, round(cosine_similarity(text_emb, embeddings[aid]), 4)) for aid in ids]
+            scored.sort(key=lambda t: -t[1])
+            best = scored[:IMAGE_VIDEO_TOP_K]
+            top = [(aid, s) for aid, s in best if s >= threshold]
+            if top:
+                matches[claim_id] = top
+                aid, score = top[0]
+                details.append({
+                    "claim_id": claim_id, "asset_id": aid, "modality": modality, "match_method": "category_gated_semantic_match",
+                    "match_score": score, "category_gate_passed": True,
+                    "match_explanation": f"claim_category '{category}' compatible with {modality} evidence; semantic similarity {score}",
+                    "evidence_eligibility": "presentation_only" if modality == "video" else "visual_evidence",
+                    "requires_human_validation": True,
+                })
+    return matches, details
 
 
 def main() -> int:
@@ -314,21 +384,38 @@ def main() -> int:
 
     image_id_to_brand = dict(zip(image_assets.get("asset_id", []), image_assets.get("brand", [])))
     video_id_to_brand = dict(zip(video_assets.get("video_asset_id", []), video_assets.get("brand", [])))
+    image_metadata = {
+        r["asset_id"]: {"product_name": r.get("product_name", ""), "product_category": r.get("product_category", ""), "material": ""}
+        for _, r in image_assets.iterrows()
+    } if not image_assets.empty else {}
+    video_metadata = {
+        r["video_asset_id"]: {"product_name": r.get("product_name", ""), "product_category": r.get("product_category", ""), "material": ""}
+        for _, r in video_assets.iterrows()
+    } if not video_assets.empty else {}
+
+    visual_match_details: list[dict] = []
+    image_matches_all, video_matches_all = {}, {}
+    for brand in claims["brand"].unique():
+        brand_image_embeddings = {k: v for k, v in image_embeddings.items() if image_id_to_brand.get(k) == brand}
+        brand_video_embeddings = {k: v for k, v in video_embeddings.items() if video_id_to_brand.get(k) == brand}
+        m, d = match_visual_evidence(claims, brand, brand_image_embeddings, IMAGE_SIMILARITY_THRESHOLD, image_metadata, modality="image")
+        image_matches_all.update({k: v for k, v in m.items() if v})
+        visual_match_details.extend(d)
+        m, d = match_visual_evidence(claims, brand, brand_video_embeddings, VIDEO_SIMILARITY_THRESHOLD, video_metadata, modality="video")
+        video_matches_all.update({k: v for k, v in m.items() if v})
+        visual_match_details.extend(d)
+
+    if visual_match_details:
+        VISUAL_MATCHES_OUT = PROJECT_ROOT / "data" / "processed" / "claim_visual_evidence_matches.csv"
+        pd.DataFrame(visual_match_details).to_csv(VISUAL_MATCHES_OUT, index=False)
+        print(f"Saved: {VISUAL_MATCHES_OUT.relative_to(PROJECT_ROOT)} ({len(visual_match_details)} claim-visual matches)")
 
     rows = []
     for _, claim in claims.iterrows():
         brand = claim["brand"]
-        brand_image_embeddings = {k: v for k, v in image_embeddings.items() if image_id_to_brand.get(k) == brand}
-        brand_video_embeddings = {k: v for k, v in video_embeddings.items() if video_id_to_brand.get(k) == brand}
-
         t_matches = text_matches.get(claim["claim_id"], [])
-        i_matches = match_visual_evidence(
-            claims[claims["claim_id"] == claim["claim_id"]], brand, brand_image_embeddings, IMAGE_SIMILARITY_THRESHOLD
-        ).get(claim["claim_id"], [])
-        v_matches = match_visual_evidence(
-            claims[claims["claim_id"] == claim["claim_id"]], brand, brand_video_embeddings, VIDEO_SIMILARITY_THRESHOLD
-        ).get(claim["claim_id"], [])
-
+        i_matches = image_matches_all.get(claim["claim_id"], [])
+        v_matches = video_matches_all.get(claim["claim_id"], [])
         r_matches = reference_matches.get(claim["claim_id"], [])
 
         missing = []

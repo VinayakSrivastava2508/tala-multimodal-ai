@@ -35,7 +35,7 @@ def test_match_visual_evidence_skips_non_visually_groundable_categories(monkeypa
 
     claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "We pay fair wages.", "claim_category": "labour"}])
     embeddings = {"img_1": np.array([1.0, 0.0])}  # perfect similarity, would match if not gated
-    matches = mod.match_visual_evidence(claims, "TALA", embeddings, threshold=0.1)
+    matches, _ = mod.match_visual_evidence(claims, "TALA", embeddings, threshold=0.1)
     assert matches["c1"] == []
 
 
@@ -45,7 +45,7 @@ def test_match_visual_evidence_matches_materials_claim_above_threshold(monkeypat
 
     claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "Made from recycled nylon.", "claim_category": "materials"}])
     embeddings = {"img_1": np.array([1.0, 0.0]), "img_2": np.array([0.0, 1.0])}
-    matches = mod.match_visual_evidence(claims, "TALA", embeddings, threshold=0.5)
+    matches, _ = mod.match_visual_evidence(claims, "TALA", embeddings, threshold=0.5)
     assert matches["c1"] == [("img_1", 1.0)]
 
 
@@ -55,7 +55,7 @@ def test_match_visual_evidence_returns_empty_below_threshold(monkeypatch):
 
     claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "Made from recycled nylon.", "claim_category": "materials"}])
     embeddings = {"img_1": np.array([0.0, 1.0])}  # orthogonal -> similarity 0
-    matches = mod.match_visual_evidence(claims, "TALA", embeddings, threshold=0.5)
+    matches, _ = mod.match_visual_evidence(claims, "TALA", embeddings, threshold=0.5)
     assert matches["c1"] == []
 
 
@@ -68,7 +68,7 @@ def test_match_visual_evidence_returns_only_top1_never_the_whole_pool(monkeypatc
 
     claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "Made from recycled nylon.", "claim_category": "materials"}])
     embeddings = {"img_1": np.array([0.9, 0.1]), "img_2": np.array([1.0, 0.0]), "img_3": np.array([0.8, 0.2])}
-    matches = mod.match_visual_evidence(claims, "TALA", embeddings, threshold=0.5)
+    matches, _ = mod.match_visual_evidence(claims, "TALA", embeddings, threshold=0.5)
     assert len(matches["c1"]) == 1
     assert matches["c1"][0][0] == "img_2"  # exact match wins
 
@@ -76,7 +76,7 @@ def test_match_visual_evidence_returns_only_top1_never_the_whole_pool(monkeypatc
 def test_match_visual_evidence_empty_when_clip_unavailable(monkeypatch):
     monkeypatch.setattr(mod, "clip_is_available", lambda: False)
     claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "Made from recycled nylon.", "claim_category": "materials"}])
-    matches = mod.match_visual_evidence(claims, "TALA", {"img_1": np.array([1.0, 0.0])}, threshold=0.1)
+    matches, _ = mod.match_visual_evidence(claims, "TALA", {"img_1": np.array([1.0, 0.0])}, threshold=0.1)
     assert matches["c1"] == []
 
 

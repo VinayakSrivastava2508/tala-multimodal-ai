@@ -208,3 +208,195 @@ def test_extract_html_images_excludes_decorative_but_keeps_certification_badge()
     assert "https://cdn.example.com/product-photo.jpg" in srcs
     badge_row = next(r for r in rows if r["source_url"].endswith("oeko-tex-badge.png"))
     assert badge_row["image_role"] == "certification_badge"
+
+
+# ── process_reference_package.py preserves manually-consolidated tables ───────
+
+def test_process_reference_package_preserves_manual_consolidation_tables(tmp_path, monkeypatch):
+    """Regression: re-running process_reference_package.py must never silently
+    wipe a manually-built table (e.g. the Day 2.6B care-instruction
+    applicability tables) that it has no way to regenerate itself."""
+    import pandas as pd
+    import scripts.merge_product_references_into_package as merge_mod
+    import scripts.process_reference_package as mod
+
+    manifest_path = tmp_path / "manifest.csv"
+    chunks_path = tmp_path / "chunks.csv"
+    tables_path = tmp_path / "tables.csv"
+    images_path = tmp_path / "images.csv"
+
+    pd.DataFrame([{
+        "reference_id": "ref_1", "brand": "TALA", "reference_type": "sustainability_page",
+        "document_title": "x", "extracted_text": "Some sustainability text. " * 20,
+        "source_url": "https://example.com/x", "evidence_strength": "strong",
+        "retrieved_at": "2026-01-01", "reference_status": "collected", "mime_type": "text/html",
+        "has_tables": False,
+    }]).to_csv(manifest_path, index=False)
+
+    pd.DataFrame([{
+        "table_id": "ref_care_001_table_01", "reference_id": "ref_care_001",
+        "page_number_or_section": "", "table_type": "other", "headers": "a;b",
+        "rows_or_normalised_text": "1;2", "units": "", "source_url": "",
+        "extraction_method": "manual_consolidation", "evidence_strength": "strong",
+        "provenance_note": "care-instruction-to-product applicability table",
+    }]).to_csv(tables_path, index=False)
+
+    monkeypatch.setattr(mod, "MANIFEST_PATH", manifest_path)
+    monkeypatch.setattr(mod, "CHUNKS_OUT", chunks_path)
+    monkeypatch.setattr(mod, "TABLES_OUT", tables_path)
+    monkeypatch.setattr(mod, "IMAGES_OUT", images_path)
+    # This test is not about the Day 2.6B merge step -- point EXTRACTS_PATH at a
+    # nonexistent file so process_reference_package.py's now-automatic merge
+    # call is a documented no-op here, instead of silently falling through to
+    # the real production merge module's own (unpatched) file paths.
+    monkeypatch.setattr(merge_mod, "EXTRACTS_PATH", tmp_path / "does_not_exist.csv")
+
+    mod.main()
+
+    result = pd.read_csv(tables_path)
+    assert "ref_care_001_table_01" in result["table_id"].values
+
+
+def test_process_reference_package_reapplies_merge_when_extracts_present(tmp_path, monkeypatch):
+    """Regression: process_reference_package.py must always re-apply the Day
+    2.6B product-reference merge afterward, so rerunning it standalone can
+    never again silently drop the care-applicability tables it can't
+    regenerate itself (this previously required a human to remember to rerun
+    merge_product_references_into_package.py separately)."""
+    import pandas as pd
+    import scripts.merge_product_references_into_package as merge_mod
+    import scripts.process_reference_package as mod
+
+    manifest_path = tmp_path / "manifest.csv"
+    chunks_path = tmp_path / "chunks.csv"
+    tables_path = tmp_path / "tables.csv"
+    images_path = tmp_path / "images.csv"
+    extracts_path = tmp_path / "extracts.csv"
+
+    pd.DataFrame([{
+        "reference_id": "ref_1", "brand": "TALA", "reference_type": "sustainability_page",
+        "document_title": "x", "extracted_text": "Some sustainability text. " * 20,
+        "source_url": "https://example.com/x", "evidence_strength": "strong",
+        "retrieved_at": "2026-01-01", "reference_status": "collected", "mime_type": "text/html",
+        "has_tables": False,
+    }]).to_csv(manifest_path, index=False)
+
+    pd.DataFrame([{
+        "product_name": "Product A", "product_category": "leggings", "reference_subtype": "care_guidance",
+        "care_temperature": "30C", "washing_method": "machine_wash", "drying_method": "line_dry",
+        "ironing_guidance": "", "bleaching_guidance": "", "extracted_text": "Wash at 30C.",
+        "source_url": "https://www.wearetala.com/products/a", "evidence_strength": "strong",
+    }]).to_csv(extracts_path, index=False)
+
+    monkeypatch.setattr(mod, "MANIFEST_PATH", manifest_path)
+    monkeypatch.setattr(mod, "CHUNKS_OUT", chunks_path)
+    monkeypatch.setattr(mod, "TABLES_OUT", tables_path)
+    monkeypatch.setattr(mod, "IMAGES_OUT", images_path)
+    monkeypatch.setattr(merge_mod, "EXTRACTS_PATH", extracts_path)
+    monkeypatch.setattr(merge_mod, "MANIFEST_PATH", manifest_path)
+    monkeypatch.setattr(merge_mod, "TABLES_OUT", tables_path)
+    monkeypatch.setattr(merge_mod, "CARE_COVERAGE_OUT", tmp_path / "care_coverage.csv")
+
+    mod.main()
+
+    result = pd.read_csv(tables_path)
+    assert (result["extraction_method"] == "manual_consolidation").sum() == 1
+    merged_manifest = pd.read_csv(manifest_path)
+    assert (merged_manifest["reference_type"] == "care_guide").sum() == 1
+
+
+def test_process_reference_package_skips_merge_when_no_extracts(tmp_path, monkeypatch):
+    """When no product-reference extracts exist yet, process_reference_package.py
+    must complete successfully without attempting the merge."""
+    import pandas as pd
+    import scripts.merge_product_references_into_package as merge_mod
+    import scripts.process_reference_package as mod
+
+    manifest_path = tmp_path / "manifest.csv"
+    chunks_path = tmp_path / "chunks.csv"
+    tables_path = tmp_path / "tables.csv"
+    images_path = tmp_path / "images.csv"
+
+    pd.DataFrame([{
+        "reference_id": "ref_1", "brand": "TALA", "reference_type": "sustainability_page",
+        "document_title": "x", "extracted_text": "Some sustainability text. " * 20,
+        "source_url": "https://example.com/x", "evidence_strength": "strong",
+        "retrieved_at": "2026-01-01", "reference_status": "collected", "mime_type": "text/html",
+        "has_tables": False,
+    }]).to_csv(manifest_path, index=False)
+
+    monkeypatch.setattr(mod, "MANIFEST_PATH", manifest_path)
+    monkeypatch.setattr(mod, "CHUNKS_OUT", chunks_path)
+    monkeypatch.setattr(mod, "TABLES_OUT", tables_path)
+    monkeypatch.setattr(mod, "IMAGES_OUT", images_path)
+    monkeypatch.setattr(merge_mod, "EXTRACTS_PATH", tmp_path / "does_not_exist.csv")
+
+    assert mod.main() == 0
+
+
+# ── merge_product_references_into_package.py idempotency ──────────────────────
+
+def test_merge_product_references_is_idempotent_on_manifest(tmp_path, monkeypatch):
+    """Regression: rerunning the merge script (e.g. via the Day 2.6B
+    orchestrator) once silently duplicated every product-derived reference row
+    because it always appended onto the existing manifest rather than
+    replacing its own prior output first."""
+    import pandas as pd
+    import scripts.merge_product_references_into_package as mod
+
+    extracts_path = tmp_path / "extracts.csv"
+    manifest_path = tmp_path / "manifest.csv"
+    pd.DataFrame([{
+        "product_reference_id": "tpr_0001", "product_name": "Test Legging", "product_category": "leggings",
+        "source_url": "https://www.wearetala.com/products/test-legging", "section_title": "Wear",
+        "reference_subtype": "product_specification", "extracted_text": "A flattering legging. " * 10,
+        "care_temperature": "", "washing_method": "", "drying_method": "", "ironing_guidance": "",
+        "bleaching_guidance": "", "material_composition": "", "fit_guidance": "", "size_guidance": "",
+        "extraction_method": "bs4_class_selector", "evidence_strength": "strong", "retrieved_at": "2026-01-01",
+        "provenance_note": "product_handle=test-legging",
+    }]).to_csv(extracts_path, index=False)
+    pd.DataFrame(columns=["reference_id", "brand"]).to_csv(manifest_path, index=False)
+
+    monkeypatch.setattr(mod, "EXTRACTS_PATH", extracts_path)
+    monkeypatch.setattr(mod, "MANIFEST_PATH", manifest_path)
+
+    mod.main()
+    first_len = len(pd.read_csv(manifest_path))
+    mod.main()  # rerun
+    second_len = len(pd.read_csv(manifest_path))
+    assert first_len == second_len  # must not double on rerun
+
+
+def test_merge_product_references_dedupes_care_instructions_not_products(tmp_path, monkeypatch):
+    """Identical care instructions across multiple products must consolidate
+    into ONE reference row, not one per product."""
+    import pandas as pd
+    import scripts.merge_product_references_into_package as mod
+
+    extracts_path = tmp_path / "extracts.csv"
+    manifest_path = tmp_path / "manifest.csv"
+    tables_path = tmp_path / "tables.csv"
+    care_coverage_path = tmp_path / "care_coverage.csv"
+    pd.DataFrame([
+        {"product_reference_id": f"tpr_{i:04d}", "product_name": f"Cap {i}", "product_category": "accessories",
+         "source_url": f"https://www.wearetala.com/products/cap-{i}", "section_title": "Care",
+         "reference_subtype": "care_guidance", "extracted_text": "Do not wash. Do not tumble dry.",
+         "care_temperature": "", "washing_method": "do_not_wash", "drying_method": "do_not_tumble_dry",
+         "ironing_guidance": "", "bleaching_guidance": "", "material_composition": "", "fit_guidance": "",
+         "size_guidance": "", "extraction_method": "bs4_class_selector", "evidence_strength": "strong",
+         "retrieved_at": "2026-01-01", "provenance_note": f"product_handle=cap-{i}"}
+        for i in range(3)
+    ]).to_csv(extracts_path, index=False)
+    pd.DataFrame(columns=["reference_id", "brand"]).to_csv(manifest_path, index=False)
+
+    monkeypatch.setattr(mod, "EXTRACTS_PATH", extracts_path)
+    monkeypatch.setattr(mod, "MANIFEST_PATH", manifest_path)
+    monkeypatch.setattr(mod, "TABLES_OUT", tables_path)
+    monkeypatch.setattr(mod, "CARE_COVERAGE_OUT", care_coverage_path)
+    mod.main()
+
+    manifest = pd.read_csv(manifest_path)
+    care_rows = manifest[manifest["reference_type"] == "care_guide"]
+    assert len(care_rows) == 1  # one unique instruction, not 3 independent documents
+    assert "Cap 0" in care_rows.iloc[0]["provenance_note"]
+    assert "Cap 2" in care_rows.iloc[0]["provenance_note"]

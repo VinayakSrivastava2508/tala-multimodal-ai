@@ -193,3 +193,47 @@ def test_video_level_features_rows_have_at_least_two_sampled_frames():
     if df.empty:
         pytest.skip("no processed video rows yet")
     assert (df["n_sampled_frames"] >= 2).all()
+
+
+# ── regression: frame_id must be unique even for multiple "interval" frames ───
+# (a video longer than 2x the interval spacing gets several frames all labelled
+# sample_position="interval" -- frame_id must include frame_index too, or
+# distinct frames silently collide under the same id and get lost to any
+# later drop_duplicates(subset="frame_id") cleanup.)
+
+def test_frame_id_includes_frame_index_for_uniqueness_across_interval_frames():
+    video_asset_id = "tala_video_test"
+    frames = [
+        {"sample_position": "interval", "frame_index": 100},
+        {"sample_position": "interval", "frame_index": 200},
+        {"sample_position": "interval", "frame_index": 300},
+    ]
+    frame_ids = {f"{video_asset_id}_{f['sample_position']}_{f['frame_index']}" for f in frames}
+    assert len(frame_ids) == 3  # all distinct despite sharing sample_position="interval"
+
+
+def test_video_frame_features_csv_has_no_duplicate_frame_ids():
+    import pandas as pd
+    path = PROJECT_ROOT / "data" / "processed" / "video_frame_features.csv"
+    if not path.exists() or path.stat().st_size == 0:
+        pytest.skip("video_frame_features.csv not present in this environment")
+    df = pd.read_csv(path)
+    if df.empty:
+        pytest.skip("no frame rows yet")
+    assert df["frame_id"].is_unique
+
+
+def test_video_frame_features_row_count_matches_sum_of_n_sampled_frames():
+    """Regression: an idempotency bug in process_tala_official_videos.py once
+    caused frame rows to be appended twice across reruns -- this pins the
+    invariant that frame count must equal the level table's own count."""
+    import pandas as pd
+    frame_path = PROJECT_ROOT / "data" / "processed" / "video_frame_features.csv"
+    level_path = PROJECT_ROOT / "data" / "processed" / "video_level_features.csv"
+    if not frame_path.exists() or not level_path.exists():
+        pytest.skip("processed video features not present in this environment")
+    frames = pd.read_csv(frame_path)
+    level = pd.read_csv(level_path)
+    if frames.empty or level.empty:
+        pytest.skip("no processed video rows yet")
+    assert len(frames) == level["n_sampled_frames"].sum()

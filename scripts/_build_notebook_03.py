@@ -61,7 +61,19 @@ reference_images_df = pd.read_csv(PROCESSED / "reference_images.csv")
 tala_requirement_status = pd.read_csv(TABLES / "day2_6_tala_requirement_status.csv")
 reference_package_readiness = pd.read_csv(TABLES / "day2_6_reference_package_readiness.csv")
 claim_reference_matches = pd.read_csv(PROCESSED / "claim_reference_matches.csv") if (PROCESSED / "claim_reference_matches.csv").exists() else pd.DataFrame()
-print("Loaded Day 2.5 + Day 2.6A outputs.")""")
+
+# Day 2.6B
+video_assets_expanded = pd.read_csv(INTERIM_DAY2_6 / "video_assets_expanded.csv") if (INTERIM_DAY2_6 / "video_assets_expanded.csv").exists() else video_assets
+product_page_funnel = pd.read_csv(TABLES / "day2_6b_product_page_funnel.csv")
+product_extracts = pd.read_csv(INTERIM_DAY2_6 / "tala_product_reference_extracts.csv")
+care_guidance_coverage = pd.read_csv(TABLES / "day2_6b_care_guidance_coverage.csv")
+official_video_discovery = pd.read_csv(TABLES / "day2_6b_official_video_discovery.csv")
+processed_tala_video_coverage = pd.read_csv(TABLES / "day2_6b_processed_tala_video_coverage.csv")
+claim_visual_evidence_matches = pd.read_csv(PROCESSED / "claim_visual_evidence_matches.csv") if (PROCESSED / "claim_visual_evidence_matches.csv").exists() else pd.DataFrame()
+full_modality_bundles = pd.read_csv(PROCESSED / "full_modality_prototype_bundles.csv") if (PROCESSED / "full_modality_prototype_bundles.csv").exists() else pd.DataFrame()
+full_modality_bundle_coverage = pd.read_csv(TABLES / "day2_6b_full_modality_bundle_coverage.csv")
+day2_6b_readiness_gates = pd.read_csv(TABLES / "day2_6b_readiness_gates.csv")
+print("Loaded Day 2.5 + Day 2.6A + Day 2.6B outputs.")""")
 
 md("## 1. Image Package — official catalog images\n\nCollected directly from each brand's own public Shopify `products.json` endpoint (`scripts/collect_official_product_media.py`). No search-result thumbnails, no login/anti-bot bypass.")
 
@@ -308,39 +320,117 @@ and product/try-on video. This is already implemented at the candidate-generatio
 claims only) — the future RAG retriever must reuse this same category→modality routing table
 rather than retrieving all modalities uniformly for every query.
 
-### GO / NO-GO
+See §9 below for the current (Day 2.6B) GO/NO-GO verdicts -- both blockers referenced above have
+since been resolved.""")
 
-| Downstream stage | Verdict | Basis |
-|---|---|---|
-| Primary claim-evidence fusion | **NO-GO** | 3/7 minimum-bar criteria unmet: Reference Package empty, <5 claims with >=2 modalities, 0 claims with a defensible text+image+video bundle. All three pipelines genuinely work -- these are depth gaps, not capability gaps. |
-| Multimodal RAG | **NO-GO** | Same underlying gaps -- building RAG now would silently over-rely on text, the only consistently available modality. |
+md("## 9. Day 2.6B: targeted TALA product-reference and official-video recovery")
 
-**Remediation, in priority order:**
-1. Recover more permitted TALA official/product videos (place any not directly downloadable
-   under `data/raw/authorised_video_assets/`); competitor video is secondary and not required.
-2. Collect the first Multimodal Reference Package documents (impact reports, certifications,
-   material specs, sizing/care guidance, return policies).
-3. Re-run `python scripts/run_day2_5_modality_alignment.py --refresh` and re-check
-   `outputs/tables/primary_fusion_readiness.csv`.
+md("""### 9.1 TALA product-page discovery funnel
 
-Full narrative: `docs/assignment_alignment_audit.md`.""")
+21 product pages targeted across all 7 assignment categories (3 per category), enumerated from
+wearetala.com's public `/products.json` catalog.""")
+
+code("""display(product_page_funnel[["product_name", "category", "availability", "http_status", "page_extraction_status"]])
+print(f"\\n{int((product_page_funnel['page_extraction_status']=='extracted').sum())}/{len(product_page_funnel)} pages successfully extracted")
+print(product_page_funnel["category"].value_counts().to_string())""")
+
+md("""### 9.2 Care/specification extraction
+
+Every product page's server-rendered Wear/Care/Aware tabs were parsed directly (no JavaScript
+execution needed -- verified by inspection) into structured records.""")
+
+code("""display(product_extracts["reference_subtype"].value_counts())
+display(product_extracts[product_extracts["reference_subtype"]=="care_guidance"][
+    ["product_name", "product_category", "care_temperature", "washing_method", "drying_method", "bleaching_guidance"]
+])""")
+
+md("""### 9.3 Recovered care evidence
+
+Identical care instructions across products are consolidated into ONE unique instruction, never
+counted as N independent documents.""")
+
+code("""display(care_guidance_coverage[["reference_id", "washing_method", "drying_method", "n_products", "n_categories", "categories"]])
+print(f"\\n{len(care_guidance_coverage)} unique care instruction(s) recovered, "
+      f"covering {care_guidance_coverage['n_products'].sum()} product-level records")""")
+
+md("""### 9.4 Official product-video discovery funnel
+
+Deep per-page inspection found that a single product page can embed several distinct video IDs
+-- the Day 2.5 discovery script's lowest-bitrate-then-dedupe heuristic had silently discarded
+all but one of them.""")
+
+code("""display(official_video_discovery[["video_id", "product_category", "n_products_featured_on"]])
+print(f"\\n{len(official_video_discovery)} distinct official video(s) discovered")""")
+
+md("### 9.5 Processed video coverage")
+
+code("""display(processed_tala_video_coverage)
+n_tala_processed_2_6b = int((video_assets_expanded[(video_assets_expanded['brand']=='TALA') & (video_assets_expanded['processing_status']=='processed')]).shape[0])
+n_roles_2_6b = video_assets_expanded.loc[(video_assets_expanded['brand']=='TALA') & (video_assets_expanded['processing_status']=='processed'), 'video_role'].nunique()
+print(f"\\nGenuinely processed TALA videos: {n_tala_processed_2_6b} (target >=4)")
+print(f"Distinct video_role values: {n_roles_2_6b} (target >=2)")""")
+
+md("""### 9.6 Product-aware evidence linking
+
+The claim-evidence matching hierarchy was extended: (1) exact product, (2) exact product handle,
+(3) verified product category, (4) exact material, (5) claim-category-gated semantic match. A
+product video can support appearance/presentation/movement -- never durability, wash
+performance, emissions, labour conditions, or certification status by itself
+(`VIDEO_INELIGIBLE_CLAIM_CATEGORIES`).""")
+
+code("""if not claim_visual_evidence_matches.empty:
+    display(claim_visual_evidence_matches[claim_visual_evidence_matches["modality"]=="video"][
+        ["claim_id", "asset_id", "match_method", "match_score", "evidence_eligibility"]
+    ])
+else:
+    print("No claim-visual matches recorded.")""")
+
+md("### 9.7 Full-modality prototype bundle")
+
+code("""display(full_modality_bundle_coverage)
+if not full_modality_bundles.empty:
+    display(full_modality_bundles[["bundle_id", "claim_or_issue_id", "modality_count", "proposed_analytical_use", "limitations"]])""")
+
+md("""**No aligned/divergent verdict is assigned** -- `full_modality_prototype_bundles.csv` is a
+candidate layer only, same as the rest of Day 2.5/2.6A.""")
+
+md("### 9.8 Final readiness gates")
+
+code("""display(day2_6b_readiness_gates)""")
+
+md("""### 9.9 Unresolved limitations (not fabricated, not silently dropped)
+
+- Quality/warranty policy, packaging policy, emissions disclosure, and brand/visual guidance
+  remain genuinely absent from TALA's public site (verified by manual inspection).
+- All newly recovered videos are the same shared brand-content gallery, not per-product footage
+  -- role diversity is real (2 values) but category-specific video evidence for a SPECIFIC
+  product does not exist.
+- 16/37 TALA claims (mostly `labour` category) still have zero evidence in any modality -- no
+  reference document specifically addresses labour conditions, and no image/video is eligible
+  for this category by design.
+- The product-aware matching hierarchy's tiers 1-4 (exact product/handle/category/material) are
+  implemented and tested but do not fire against today's claim set, which carries no
+  product-name/category linkage -- a genuine data limitation, not an implementation gap.
+
+Full narrative: `docs/day2_6b_product_reference_video_recovery.md`, `docs/assignment_alignment_audit.md`.""")
 
 code("""print("=" * 60)
-print("NOTEBOOK 03 COMPLETE -- Video Pipeline + Multimodal Reference Package (Day 2.5 + Day 2.6A)")
+print("NOTEBOOK 03 COMPLETE -- Video Pipeline + Multimodal Reference Package (Day 2.5 + Day 2.6A + Day 2.6B)")
 print("=" * 60)
 print(f"  Verified official images:        {int((image_assets['processing_status']=='downloaded').sum())}")
 print(f"  Video leads (not processed):     {n_leads}")
-print(f"  Genuinely processed videos:      {n_processed}")
+print(f"  Genuinely processed videos:      {n_tala_processed_2_6b} (target >=4, {n_roles_2_6b} distinct roles)")
 print(f"  Verified reference documents:    {int(reference_assets['reference_status'].isin(['collected','already_available']).sum())}")
 print(f"  TALA requirements found:         {int((tala_requirement_status['status']=='found').sum())}/{len(tala_requirement_status)}")
 print(f"  Reference chunks/tables/images:  {len(reference_chunks)}/{len(reference_tables_df)}/{len(reference_images_df)}")
+print(f"  Care instructions recovered:     {len(care_guidance_coverage)} unique (from {int((product_extracts['reference_subtype']=='care_guidance').sum())} product records)")
 print(f"  Claim bundles:                   {n_claims}")
 print(f"  Claims processed (>=1 modality): {n_ge1}/{n_claims}")
+print(f"  Claims with video evidence:      {int((claim_candidates['video_asset_ids'].fillna('')!='').sum())}/{n_claims}")
 print(f"  Claims with text+image+video:    {n_all3}/{n_claims}")
-print(f"  Reference Package:               {ref_overall['status']} (see \\u00a75.9)")
-overall = readiness[readiness["criterion"] == "OVERALL"].iloc[0]
-print(f"  Primary fusion:                  {overall['status']} (see \\u00a78)")
-print(f"  Multimodal RAG:                  NO-GO (see \\u00a78)")""")
+print(f"  Full-modality prototype bundles: {len(full_modality_bundles)}")
+for _, row in day2_6b_readiness_gates.iterrows():
+    print(f"  {row['component']:<32} {row['status']}")""")
 
 nb["cells"] = cells
 with open("notebooks/03_video_pipeline_and_multimodal_evidence.ipynb", "w", encoding="utf-8") as f:

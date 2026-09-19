@@ -454,13 +454,124 @@ def evaluate_reference_package_readiness(
     return out
 
 
+# ── Day 2.6B Part J: product-page/video-recovery output tables ────────────────
+
+def build_official_video_discovery_table() -> pd.DataFrame:
+    src = INTERIM_DAY2_6 / "tala_official_video_discovery.csv"
+    df = _read_csv(src)
+    path = TABLES / "day2_6b_official_video_discovery.csv"
+    df.to_csv(path, index=False)
+    print(f"  Saved: {_relpath(path)}")
+    return df
+
+
+def build_processed_tala_video_coverage_table(video_assets: pd.DataFrame) -> pd.DataFrame:
+    if video_assets.empty:
+        out = pd.DataFrame()
+        out.to_csv(TABLES / "day2_6b_processed_tala_video_coverage.csv", index=False)
+        return out
+
+    tala = video_assets[video_assets["brand"] == "TALA"].copy()
+    processed = tala[tala["processing_status"] == "processed"]
+    rows = []
+    for _, r in processed.iterrows():
+        categories = str(r.get("product_category", "")).split(";")
+        rows.append({
+            "video_asset_id": r["video_asset_id"], "video_role": r["video_role"],
+            "n_categories_featured_on": len(categories) if categories != [""] else 0,
+            "rights_or_access_basis": r["rights_or_access_basis"], "source_url": r.get("source_url", ""),
+        })
+    out = pd.DataFrame(rows)
+    path = TABLES / "day2_6b_processed_tala_video_coverage.csv"
+    out.to_csv(path, index=False)
+    print(f"  Saved: {_relpath(path)} ({len(out)} processed TALA video(s), "
+          f"{processed['video_role'].nunique() if not processed.empty else 0} distinct role(s))")
+    return out
+
+
+def build_full_modality_bundle_coverage_table() -> pd.DataFrame:
+    src = PROCESSED / "full_modality_prototype_bundles.csv"
+    df = _read_csv(src)
+    if df.empty:
+        out = pd.DataFrame([{"n_bundles": 0, "n_with_modality_count_4": 0, "n_with_modality_count_3": 0}])
+    else:
+        out = pd.DataFrame([{
+            "n_bundles": len(df),
+            "n_with_modality_count_4": int((df["modality_count"] == 4).sum()),
+            "n_with_modality_count_3": int((df["modality_count"] == 3).sum()),
+            "claim_ids": ";".join(df["claim_or_issue_id"].tolist()),
+        }])
+    path = TABLES / "day2_6b_full_modality_bundle_coverage.csv"
+    out.to_csv(path, index=False)
+    print(f"  Saved: {_relpath(path)}")
+    return out
+
+
+# ── Day 2.6B Part I: final readiness gates ────────────────────────────────────
+
+def evaluate_day2_6b_readiness_gates(
+    reference_readiness: pd.DataFrame, video_package_row: dict, video_pipeline_row: dict,
+    image_audit: dict, bundle_summary: pd.DataFrame, full_modality_bundles: pd.DataFrame,
+    claim_layer_row: dict,
+) -> pd.DataFrame:
+    """Part I: separate PASS/PARTIAL/NO-GO for each named component, using the
+    stricter Day 2.6B bar (Reference Package PASS requires the care criterion;
+    Video Package PASS requires >=4 TALA videos + >=2 roles/categories)."""
+    ref_overall = reference_readiness[reference_readiness["criterion"] == "OVERALL"].iloc[0] if not reference_readiness.empty else None
+    reference_status = "PASS" if (ref_overall is not None and ref_overall["status"] == "GO") else (
+        "PARTIAL" if video_package_row.get("verified_assets", 0) > 0 else "NO-GO")
+
+    video_package_status = {"PASS": "PASS", "PARTIAL": "PARTIAL", "FAIL": "NO-GO"}.get(video_package_row.get("assignment_status"), "NO-GO")
+    video_pipeline_status = {"PASS": "PASS", "PARTIAL": "PARTIAL", "FAIL": "NO-GO"}.get(video_pipeline_row.get("assignment_status"), "NO-GO")
+
+    n_bundles_ge1 = int(bundle_summary["bundles_with_ge1_verified_modality"].iloc[0]) if not bundle_summary.empty else 0
+    # Reuse assignment_modality_audit.csv's own verdict for this component rather than
+    # inventing a second, possibly-inconsistent threshold here.
+    claim_layer_status = {"PASS": "PASS", "PARTIAL": "PARTIAL", "FAIL": "NO-GO"}.get(claim_layer_row.get("assignment_status"), "NO-GO")
+
+    text_pkg_pass = True  # established PASS in Day 2.5, unaffected by this task
+    image_pkg_pass = image_audit.get("verified", 0) > 0
+    n_ge2 = int(bundle_summary["bundles_with_ge2_eligible_modalities"].iloc[0]) if not bundle_summary.empty else 0
+    n_full3 = int(bundle_summary["bundles_with_text_image_video"].iloc[0]) if not bundle_summary.empty else 0
+
+    fusion_criteria_met = (
+        text_pkg_pass and image_pkg_pass and video_pipeline_status == "PASS"
+        and reference_status == "PASS" and n_ge2 >= 5 and n_full3 >= 1
+    )
+    fusion_status = "GO" if fusion_criteria_met else "NO-GO"
+
+    rag_ready = n_bundles_ge1 > 0  # RAG can technically be GO even if not every claim has all modalities
+    rag_status = "GO" if rag_ready else "NO-GO"
+
+    rows = [
+        {"component": "Reference Package", "status": reference_status,
+         "detail": ref_overall["detail"] if ref_overall is not None else "not evaluated"},
+        {"component": "Video Package", "status": video_package_status, "detail": video_package_row.get("missing_assets", "")},
+        {"component": "Video Pipeline", "status": video_pipeline_status, "detail": video_pipeline_row.get("missing_assets", "")},
+        {"component": "Claim-evidence candidate layer", "status": claim_layer_status,
+         "detail": f"{n_bundles_ge1} claims with >=1 verified modality"},
+        {"component": "Primary fusion readiness", "status": fusion_status,
+         "detail": "all criteria met" if fusion_criteria_met else
+                    f"text={text_pkg_pass}, image={image_pkg_pass}, video_pipeline={video_pipeline_status=='PASS'}, "
+                    f"reference={reference_status=='PASS'}, >=5 claims>=2 modalities={n_ge2>=5} ({n_ge2}), "
+                    f">=1 full text+image+video={n_full3>=1} ({n_full3})"},
+        {"component": "Multimodal RAG readiness", "status": rag_status,
+         "detail": f"{n_bundles_ge1} claim(s) with >=1 verified modality; RAG does not require every claim to be fully multimodal"},
+    ]
+    out = pd.DataFrame(rows)
+    path = TABLES / "day2_6b_readiness_gates.csv"
+    out.to_csv(path, index=False)
+    print(f"  Saved: {_relpath(path)}")
+    return out
+
+
 # ── Step 7: assignment_modality_audit.csv ─────────────────────────────────────
 
 def build_modality_audit(
     text_corpora: dict, image_audit: dict, video_coverage: pd.DataFrame,
     video_feature_summary: pd.DataFrame, claim_candidates: pd.DataFrame,
     bundle_summary: pd.DataFrame, reference_assets: pd.DataFrame,
-    reference_readiness: pd.DataFrame,
+    reference_readiness: pd.DataFrame, video_assets: pd.DataFrame = None,
 ) -> pd.DataFrame:
     rows = []
 
@@ -499,9 +610,15 @@ def build_modality_audit(
     n_tala_processed = int(tala_row["genuinely_processed_videos"].iloc[0]) if not tala_row.empty else 0
     n_competitor_processed = n_processed - n_tala_processed
     TALA_TARGET = 4  # ideal depth for the primary-objective brand; not a hard PASS/FAIL cliff
+
+    n_role_or_category_values = 0
+    if video_assets is not None and not video_assets.empty:
+        tala_processed_rows = video_assets[(video_assets["brand"] == "TALA") & (video_assets["processing_status"] == "processed")]
+        n_role_or_category_values = tala_processed_rows["video_role"].nunique() if not tala_processed_rows.empty else 0
+
     if n_tala_processed == 0:
         video_status = "FAIL"
-    elif n_tala_processed < TALA_TARGET:
+    elif n_tala_processed < TALA_TARGET or n_role_or_category_values < 2:
         video_status = "PARTIAL"
     else:
         video_status = "PASS"
@@ -510,11 +627,12 @@ def build_modality_audit(
         "available_assets": n_leads + n_processed, "verified_assets": n_processed,
         "directly_processed_assets": n_processed, "proxy_only_assets": n_leads,
         "missing_assets": f"{n_leads} platform_metadata_only video leads (YouTube/TikTok URLs -- correctly excluded from coverage); "
-                           f"TALA (primary objective brand): {n_tala_processed}/{TALA_TARGET} target processed video(s); "
+                           f"TALA (primary objective brand): {n_tala_processed}/{TALA_TARGET} target processed video(s), "
+                           f"{n_role_or_category_values} distinct video_role value(s); "
                            f"competitor (secondary comparison, not required): {n_competitor_processed} processed video(s)",
         "assignment_status": video_status,
         "remediation_action": (
-            "none required for primary objective -- TALA depth target met" if video_status == "PASS" else
+            "none required for primary objective -- TALA depth and role-diversity targets met" if video_status == "PASS" else
             "recover video in priority order: (1) permitted TALA official/product videos "
             "(place under data/raw/authorised_video_assets/ if not directly downloadable), "
             "(2) other permitted TALA-relevant videos (e.g. creator-authorised), "
@@ -618,7 +736,8 @@ def main() -> int:
     print("Day 2.5 assignment-modality audit\n" + "=" * 60)
 
     image_assets = _read_csv(INTERIM_DAY2_5 / "image_assets.csv")
-    video_assets = _read_csv(INTERIM_DAY2_5 / "video_assets.csv")
+    expanded_video_path = INTERIM_DAY2_6 / "video_assets_expanded.csv"
+    video_assets = _read_csv(expanded_video_path) if expanded_video_path.exists() else _read_csv(INTERIM_DAY2_5 / "video_assets.csv")
     video_level = _read_csv(PROCESSED / "video_level_features.csv")
     video_frames = _read_csv(PROCESSED / "video_frame_features.csv")
     creator_features = _read_csv(PROCESSED / "creator_multimodal_features.csv")
@@ -662,7 +781,7 @@ def main() -> int:
     print("\n" + reference_readiness.to_string(index=False))
 
     print("\n[Modality audit]")
-    audit = build_modality_audit(text_corpora, image_audit, video_coverage, video_feature_summary, claim_candidates, bundle_summary, reference_assets, reference_readiness)
+    audit = build_modality_audit(text_corpora, image_audit, video_coverage, video_feature_summary, claim_candidates, bundle_summary, reference_assets, reference_readiness, video_assets)
     print("\n" + audit[["package", "assignment_status"]].to_string(index=False))
 
     n_ref = int(reference_assets["reference_status"].isin(REFERENCE_VERIFIED_STATUSES).sum()) if not reference_assets.empty else 0
@@ -670,6 +789,19 @@ def main() -> int:
     print("\n[Primary fusion readiness]")
     readiness = evaluate_primary_fusion_readiness(image_audit, n_with_temporal, n_ref, bundle_summary)
     print("\n" + readiness.to_string(index=False))
+
+    print("\n[Day 2.6B product-page/video-recovery tables]")
+    build_official_video_discovery_table()
+    build_processed_tala_video_coverage_table(video_assets)
+    full_modality_bundles = build_full_modality_bundle_coverage_table()
+    full_modality_bundles_df = _read_csv(PROCESSED / "full_modality_prototype_bundles.csv")
+
+    video_package_row = audit[audit["package"] == "Video Package"].iloc[0].to_dict()
+    video_pipeline_row = audit[audit["package"] == "Video Pipeline"].iloc[0].to_dict()
+    claim_layer_row = audit[audit["package"] == "Claim-evidence candidate layer"].iloc[0].to_dict()
+    print("\n[Day 2.6B readiness gates]")
+    gates = evaluate_day2_6b_readiness_gates(reference_readiness, video_package_row, video_pipeline_row, image_audit, bundle_summary, full_modality_bundles_df, claim_layer_row)
+    print("\n" + gates.to_string(index=False))
 
     print("\n" + "=" * 60)
     print("Audit complete. See outputs/tables/assignment_modality_audit.csv for the authoritative status.")

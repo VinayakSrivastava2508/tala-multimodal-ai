@@ -32,6 +32,11 @@ EXACT_FILENAME_SCHEMA: Dict[str, str] = {
     "reference_document_chunks":      "reference_document_chunks",
     "reference_tables":                "reference_tables",
     "reference_images":                "reference_images",
+    "claim_evidence_units":            "claim_evidence_units",
+    "claim_fusion_results":            "claim_fusion_results",
+    "fusion_sensitivity_stability":    "fusion_sensitivity_stability",
+    "automated_fusion_evaluation":    "automated_fusion_evaluation",
+    "fusion_unstable_claims":          "fusion_unstable_claims",
 }
 
 # Legacy filename PREFIX inference for Day 1 files. Only consulted when no exact

@@ -74,7 +74,7 @@ def process_one_video(video_asset_id: str, local_path: Path) -> tuple[list[dict]
     for f in frames:
         if f["frame_array"] is None:
             frame_rows.append({
-                "video_asset_id": video_asset_id, "frame_id": f"{video_asset_id}_{f['sample_position']}",
+                "video_asset_id": video_asset_id, "frame_id": f"{video_asset_id}_{f['sample_position']}_{f['frame_index']}",
                 "frame_index": f["frame_index"], "timestamp_seconds": f["timestamp_seconds"],
                 "sample_position": f["sample_position"], "local_frame_path": "",
                 "clip_embedding_available": False, "clip_embedding_file_hash": "",
@@ -84,7 +84,7 @@ def process_one_video(video_asset_id: str, local_path: Path) -> tuple[list[dict]
         interp = extract_frame_features(f["frame_array"])
         f.update(interp)
 
-        frame_id = f"{video_asset_id}_{f['sample_position']}"
+        frame_id = f"{video_asset_id}_{f['sample_position']}_{f['frame_index']}"
         frame_path = frame_dir / f"{frame_id}.jpg"
         save_frame(f["frame_array"], frame_path)
 

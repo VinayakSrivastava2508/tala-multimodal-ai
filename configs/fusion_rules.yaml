@@ -1,0 +1,140 @@
+# Day 3A: primary multimodal evidence fusion configuration.
+#
+# All fusion behaviour (thresholds, weights, gates) is defined here rather than
+# hardcoded in src/fusion/* -- this is the single place to inspect or vary the
+# rules, and the file scripts/run_fusion_sensitivity.py perturbs to test
+# stability. No parameter here was tuned against a human-labelled ground
+# truth (none exists for this academic prototype) -- values are set from
+# documented conventions already used elsewhere in this project (e.g. the same
+# 0.35 text-similarity threshold used in scripts/build_claim_multimodal_candidates.py)
+# or from a defensible, stated rationale.
+
+dataset_version: day3_primary_fusion_v1
+
+# ── Claim-category taxonomy (matches configs/schema.yaml claim categories) ────
+claim_categories:
+  - materials
+  - labour
+  - manufacturing
+  - packaging
+  - emissions
+  - circularity
+  - other
+
+# ── Visual groundability (Part 7) ──────────────────────────────────────────────
+# A claim's category determines whether image/video evidence may ever
+# contribute a stance (support/challenge), or must remain neutral_context.
+visual_groundability:
+  potentially_visually_groundable:
+    - appearance
+    - colour
+    - visible_design
+    - visible_construction
+    - product_presentation
+    - visible_fit
+    - garment_movement
+    - packaging_appearance
+  conditionally_visually_groundable:
+    - material_appearance
+    - opacity
+    - stretch_demonstration
+    - short_term_functional_demonstration
+  not_visually_groundable:
+    - labour
+    - emissions
+    - supplier_conditions
+    - ethical_sourcing
+    - certification
+    - long_term_durability
+    - long_term_wash_performance
+    - quantitative_sustainability_claims
+  # Maps this project's actual claim_category values (from claims_expanded.csv)
+  # onto the three groundability tiers above -- only 'materials' claims are
+  # ever offered a chance at visual stance contribution, matching the gate
+  # already established in scripts/build_claim_multimodal_candidates.py.
+  claim_category_groundability:
+    materials: conditionally_visually_groundable  # fabric/material appearance may be visible
+    labour: not_visually_groundable
+    manufacturing: not_visually_groundable
+    packaging: potentially_visually_groundable      # packaging_appearance is visually groundable
+    emissions: not_visually_groundable
+    circularity: not_visually_groundable
+    other: not_visually_groundable
+
+# ── Relevance thresholds ────────────────────────────────────────────────────────
+relevance_thresholds:
+  text_relevance_min: 0.35        # matches TEXT_SIMILARITY_THRESHOLD in build_claim_multimodal_candidates.py
+  image_relevance_min: 0.27       # matches IMAGE_SIMILARITY_THRESHOLD
+  video_relevance_min: 0.24       # matches VIDEO_SIMILARITY_THRESHOLD
+  reference_relevance_min: 0.35   # matches REFERENCE_SEMANTIC_THRESHOLD
+
+# ── Stance thresholds (rule-based sentiment -> stance mapping) ─────────────────
+stance_thresholds:
+  supports_polarity_min: 0.15      # TextBlob polarity >= this -> supports (if relevant)
+  challenges_polarity_max: -0.15   # TextBlob polarity <= this -> challenges (if relevant)
+  # Between the two thresholds (and relevant) -> neutral_context.
+  # Below relevance threshold entirely -> stance is never computed (not_applicable).
+  unclear_subjectivity_min: 0.85   # very high subjectivity + weak polarity -> unclear, not supports/challenges
+
+# ── Source-reliability tiers ────────────────────────────────────────────────────
+# Used as a multiplier on reliability_score (0-1). Independent third-party
+# sources are weighted above self-reported brand disclosure and above
+# unclear-provenance sources -- documented rationale: independent evidence is
+# less prone to the exact self-report bias this fusion task exists to check for.
+source_reliability_tiers:
+  independent: 1.0
+  customer_reported: 0.85
+  self_reported: 0.5
+  unclear: 0.4
+
+# ── Evidence-strength weight (multiplier on reliability_score) ────────────────
+evidence_strength_weight:
+  strong: 1.0
+  medium: 0.7
+  weak: 0.4
+  unusable: 0.0   # unusable-strength evidence is excluded upstream; kept here for completeness
+
+# ── Minimum-evidence requirements for a claim to be scored beyond insufficient ──
+minimum_evidence:
+  min_eligible_evidence_count: 1   # at least 1 eligible (non-context-only) evidence unit
+  min_reliability_for_single_evidence: 0.5   # a lone evidence unit must clear this reliability
+
+# ── Label decision rules (thresholds evidence_fusion.py applies) ──────────────
+label_decision:
+  # A unit "supports"/"challenges" only if stance is that value AND relevance
+  # clears its modality threshold AND (for image/video) the visual gate passed.
+  aligned_min_support_ratio: 0.7     # >=70% of eligible units support, none material challenge
+  partial_min_support_ratio: 0.34    # some support but below the aligned bar, or self-reported-only
+  mixed_requires_both: true          # mixed = >=1 credible support AND >=1 credible challenge
+  divergent_min_challenge_reliability: 0.5  # a challenge must clear this reliability to be "material"
+
+# ── Confidence rules ────────────────────────────────────────────────────────────
+confidence:
+  base: 0.5
+  per_eligible_evidence_unit: 0.05
+  max_evidence_bonus: 0.3
+  independent_evidence_bonus: 0.1
+  conflicting_evidence_penalty: 0.15
+  single_evidence_penalty: 0.15
+  cap_min: 0.05
+  cap_max: 0.95
+
+# ── Presentation restrictions (Part 12) ────────────────────────────────────────
+presentation_restrictions:
+  aligned: may_present_as_automated_finding
+  partially_aligned: may_present_as_automated_finding
+  mixed: present_with_strong_caveat
+  divergent: present_with_strong_caveat
+  insufficient_evidence: may_present_as_automated_finding
+
+# ── Sensitivity-analysis parameter ranges (scripts/run_fusion_sensitivity.py) ──
+sensitivity_analysis:
+  reliability_weight_delta: [-0.15, 0.15]        # perturb source_reliability_tiers by this much
+  relevance_threshold_delta: [-0.05, 0.05]       # perturb all *_relevance_min by this much
+  stance_threshold_delta: [-0.05, 0.05]          # perturb stance polarity thresholds
+  minimum_evidence_count_range: [1, 2]           # try min_eligible_evidence_count in this range
+  scenarios:
+    - remove_self_reported_references
+    - remove_medium_strength_evidence
+    - remove_image_video_contextual_evidence
+    - single_evidence_dependency_check

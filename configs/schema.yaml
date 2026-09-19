@@ -506,7 +506,7 @@ schemas:
       file_hash:                  { dtype: str,  required: false }
       provenance_note:            { dtype: str,  required: false }
       discovery_method:          { dtype: str,  required: false,
-        values: [existing_hydrated_source, common_slug_probe, sitemap, ddgs_discovery_then_direct_fetch] }
+        values: [existing_hydrated_source, common_slug_probe, sitemap, ddgs_discovery_then_direct_fetch, product_page_section_extraction] }
       official_source:            { dtype: bool, required: false, values: [true, false] }
       certification_authority:  { dtype: str,  required: false }
       claim_relevance:            { dtype: str,  required: false }
@@ -610,3 +610,125 @@ schemas:
       candidate_generation_method: { dtype: str,  required: true }
       requires_human_validation:  { dtype: bool, required: true, values: [true, false] }
       provenance_note:            { dtype: str,  required: false }
+
+  claim_evidence_units:
+    description: >
+      Day 3A primary multimodal fusion: one row per real evidence item matched
+      to a real claim across text/image/video/reference modalities
+      (src/fusion/*.py, scripts/run_primary_multimodal_fusion.py,
+      data/processed/fusion/claim_evidence_units.csv). Stance is never fed the
+      final fusion label back in -- it is derived only from the evidence item
+      itself, per Part 6 of the Day 3A charter.
+    fields:
+      evidence_unit_id:                { dtype: str,  required: true }
+      claim_id:                          { dtype: str,  required: true }
+      claim_text:                        { dtype: str,  required: true }
+      claim_category:                    { dtype: str,  required: true }
+      modality:                          { dtype: str,  required: true,
+        values: [text, image, video, reference] }
+      evidence_id:                      { dtype: str,  required: true }
+      source_type:                      { dtype: str,  required: false }
+      source_url:                        { dtype: str,  required: false }
+      source_independence:              { dtype: str,  required: true,
+        values: [self_reported, customer_reported, independent, unclear] }
+      evidence_strength:                { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      relevance_score:                  { dtype: float, required: true }
+      stance:                            { dtype: str,  required: true,
+        values: [supports, challenges, neutral_context, unclear, not_applicable] }
+      stance_score:                      { dtype: float, required: false }
+      reliability_score:                { dtype: float, required: true, min: 0.0, max: 1.0 }
+      visually_groundable:              { dtype: bool, required: false, values: [true, false] }
+      visual_gate_passed:                { dtype: bool, required: false, values: [true, false] }
+      brand_evidence_eligible:          { dtype: bool, required: true, values: [true, false] }
+      evaluation_status:                { dtype: str,  required: true,  values: [automated_not_human_validated] }
+      provisional_finding:              { dtype: bool, required: true, values: [true, false] }
+      external_validation_recommended:  { dtype: bool, required: true, values: [true, false] }
+      provenance_note:                  { dtype: str,  required: false }
+
+  claim_fusion_results:
+    description: >
+      Day 3A decision-level fusion output: one automated, provisional result
+      per real claim, never human-validated (src/fusion/evidence_fusion.py,
+      scripts/run_primary_multimodal_fusion.py,
+      data/processed/fusion/claim_fusion_results.csv).
+    fields:
+      claim_id:                          { dtype: str,  required: true }
+      claim_category:                    { dtype: str,  required: false }
+      official_disclosure_support:      { dtype: int,  required: true }
+      independent_support:              { dtype: int,  required: true }
+      evidence_conflict:                { dtype: bool, required: true, values: [true, false] }
+      missing_modalities:                { dtype: str,  required: false }
+      evidence_count:                    { dtype: int,  required: true }
+      eligible_evidence_count:          { dtype: int,  required: true }
+      self_reported_only:                { dtype: bool, required: true, values: [true, false] }
+      confidence:                        { dtype: float, required: true, min: 0.0, max: 1.0 }
+      automated_label:                  { dtype: str,  required: true,
+        values: [aligned, partially_aligned, mixed, divergent, insufficient_evidence] }
+      business_facing_label:            { dtype: str,  required: true }
+      evaluation_status:                { dtype: str,  required: true,  values: [automated_not_human_validated] }
+      provisional_finding:              { dtype: bool, required: true, values: [true, false] }
+      external_validation_recommended:  { dtype: bool, required: true, values: [true, false] }
+      presentation_restriction:          { dtype: str,  required: true,
+        values: [may_present_as_automated_finding, present_with_strong_caveat, present_as_evidence_gap_finding_only, do_not_present_as_conclusion] }
+      presentation_restriction_reason:  { dtype: str,  required: false }
+      evidence_gap_finding:              { dtype: bool, required: true, values: [true, false] }
+
+  fusion_unstable_claims:
+    description: >
+      Day 3A governance correction: every claim that cannot receive a plain
+      may_present_as_automated_finding restriction, with the reason(s) why
+      (src/fusion/presentation_governance.py,
+      scripts/run_fusion_sensitivity.py,
+      outputs/tables/fusion_unstable_claims.csv).
+    fields:
+      claim_id:                          { dtype: str,  required: true }
+      claim_category:                    { dtype: str,  required: false }
+      automated_label:                  { dtype: str,  required: true,
+        values: [aligned, partially_aligned, mixed, divergent, insufficient_evidence] }
+      confidence:                        { dtype: float, required: true, min: 0.0, max: 1.0 }
+      self_reported_only:                { dtype: bool, required: true, values: [true, false] }
+      presentation_restriction:          { dtype: str,  required: true,
+        values: [may_present_as_automated_finding, present_with_strong_caveat, present_as_evidence_gap_finding_only, do_not_present_as_conclusion] }
+      presentation_restriction_reason:  { dtype: str,  required: false }
+      evidence_gap_finding:              { dtype: bool, required: true, values: [true, false] }
+      sensitive_to_weights:              { dtype: bool, required: true, values: [true, false] }
+      single_evidence_dependency:      { dtype: bool, required: true, values: [true, false] }
+      provenance_failure:                { dtype: bool, required: true, values: [true, false] }
+      groundability_failure:            { dtype: bool, required: true, values: [true, false] }
+
+  fusion_sensitivity_stability:
+    description: >
+      Day 3A automated sensitivity analysis: per-claim stability of the
+      automated_label under reasonable, documented perturbations of
+      configs/fusion_rules.yaml (scripts/run_fusion_sensitivity.py,
+      outputs/tables/fusion_sensitivity_stability.csv). No human labelling.
+    fields:
+      claim_id:                                { dtype: str,  required: true }
+      baseline_label:                          { dtype: str,  required: true }
+      n_distinct_labels_across_scenarios:      { dtype: int,  required: true }
+      label_stable:                            { dtype: bool, required: true, values: [true, false] }
+      confidence_std_across_scenarios:        { dtype: float, required: true }
+      single_evidence_dependency:              { dtype: bool, required: true, values: [true, false] }
+      restrictive_presentation_required:      { dtype: bool, required: true, values: [true, false] }
+
+  automated_fusion_evaluation:
+    description: >
+      Day 3A automated evaluation (methods A-E): synthetic test cases,
+      modality-ablation reuse, sensitivity reuse, cross-method rule-based vs.
+      NLI comparison (never called human agreement or Cohen's kappa), and
+      provenance/groundedness checks (src/fusion/automated_evaluation.py,
+      scripts/run_fusion_sensitivity.py,
+      outputs/tables/automated_fusion_evaluation.csv). No manual coding or
+      human-coder adjudication is used anywhere in this table.
+    fields:
+      evaluation_id:          { dtype: str,  required: true }
+      evaluation_type:        { dtype: str,  required: true,
+        values: [synthetic_test_case, modality_ablation, sensitivity_reuse, cross_method_nli_comparison, provenance_groundedness, presentation_governance] }
+      claim_id:                { dtype: str,  required: false }
+      test_case_id:            { dtype: str,  required: false }
+      expected_property:      { dtype: str,  required: true }
+      observed_property:      { dtype: str,  required: true }
+      passed:                  { dtype: bool, required: true, values: [true, false] }
+      failure_reason:          { dtype: str,  required: false }
+      method:                  { dtype: str,  required: true }
+      generated_at:            { dtype: str,  required: true }
