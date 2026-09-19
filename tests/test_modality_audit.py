@@ -306,8 +306,11 @@ def test_video_package_status_ignores_competitor_brand_count(tmp_path, monkeypat
     text_corpora = {"a": pd.DataFrame({"x": [1] * 10})}
     claim_candidates = pd.DataFrame()
     bundle_summary = build_claim_evidence_bundle_summary(claim_candidates)
+    reference_assets = pd.DataFrame()
+    reference_readiness = pd.DataFrame([{"criterion": "OVERALL", "status": "NO-GO", "detail": "no reference assets in this test"}])
 
-    audit = build_modality_audit(text_corpora, image_audit, video_coverage, video_feature_summary, claim_candidates, bundle_summary)
+    audit = build_modality_audit(text_corpora, image_audit, video_coverage, video_feature_summary, claim_candidates,
+                                  bundle_summary, reference_assets, reference_readiness)
     video_pkg = audit[audit["package"] == "Video Package"].iloc[0]
 
     # 1 TALA processed video, 0 competitor processed -- must be PARTIAL (below the
@@ -315,3 +318,90 @@ def test_video_package_status_ignores_competitor_brand_count(tmp_path, monkeypat
     # competitor absence as a blocking failure.
     assert video_pkg["assignment_status"] == "PARTIAL"
     assert "does not block" in video_pkg["remediation_action"].lower()
+
+
+# ── Day 2.6A: reference package coverage / readiness (Part J/K) ───────────────
+
+from scripts.audit_assignment_modalities import (  # noqa: E402
+    build_claim_reference_coverage,
+    build_reference_coverage_tables,
+    evaluate_reference_package_readiness,
+)
+
+
+def _reference_assets_df(rows):
+    cols = ["reference_id", "brand", "reference_type", "reference_status", "evidence_strength", "has_tables"]
+    return pd.DataFrame(rows, columns=cols)
+
+
+def test_reference_coverage_tables_count_by_brand_and_strength(tmp_path, monkeypatch):
+    monkeypatch.setattr("scripts.audit_assignment_modalities.TABLES", tmp_path)
+    df = _reference_assets_df([
+        {"reference_id": "r1", "brand": "TALA", "reference_type": "sustainability_page", "reference_status": "collected", "evidence_strength": "strong", "has_tables": False},
+        {"reference_id": "r2", "brand": "TALA", "reference_type": "size_guide", "reference_status": "not_found", "evidence_strength": "unusable", "has_tables": False},
+    ])
+    coverage, type_dist = build_reference_coverage_tables(df)
+    row = coverage[coverage["brand"] == "TALA"].iloc[0]
+    assert row["verified_assets"] == 1
+    assert row["strong"] == 1
+    assert row["not_found"] == 1
+
+
+def test_claim_reference_coverage_counts_with_and_without_match(tmp_path, monkeypatch):
+    monkeypatch.setattr("scripts.audit_assignment_modalities.TABLES", tmp_path)
+    claim_candidates = pd.DataFrame([
+        {"claim_category": "materials", "reference_document_ids": "ref1"},
+        {"claim_category": "materials", "reference_document_ids": ""},
+        {"claim_category": "labour", "reference_document_ids": ""},
+    ])
+    out = build_claim_reference_coverage(claim_candidates)
+    total = out[out["claim_category"] == "TOTAL"].iloc[0]
+    assert total["claims_with_reference_match"] == 1
+    assert total["claims_without_reference_match"] == 2
+
+
+def test_reference_package_readiness_nogo_when_mandatory_requirement_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr("scripts.audit_assignment_modalities.TABLES", tmp_path)
+    requirement_status = pd.DataFrame([
+        {"requirement": "Sustainability or responsibility policy", "status": "found"},
+        {"requirement": "Size chart or measurement guidance", "status": "not_found"},
+    ])
+    readiness = evaluate_reference_package_readiness(requirement_status, pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
+    overall = readiness[readiness["criterion"] == "OVERALL"].iloc[0]
+    assert overall["status"] == "NO-GO"
+
+
+def test_reference_package_readiness_does_not_require_brand_style_reference(tmp_path, monkeypatch):
+    """Part K: a private internal style guide must never block GO."""
+    monkeypatch.setattr("scripts.audit_assignment_modalities.TABLES", tmp_path)
+    requirement_status = pd.DataFrame([
+        {"requirement": label, "status": "found"} for label in [
+            "Sustainability or responsibility policy", "Material/fabric composition",
+            "Size chart or measurement guidance", "Garment-care or wash guidance",
+            "Return/refund policy", "Supplier or manufacturing disclosure",
+            "Certification evidence or explicit certification status",
+        ]
+    ] + [{"requirement": "Public brand/visual guidance, if available", "status": "not_found"}])
+    chunks = pd.DataFrame([{"chunk_id": "c1"}])
+    readiness = evaluate_reference_package_readiness(requirement_status, pd.DataFrame(), chunks, pd.DataFrame())
+    overall = readiness[readiness["criterion"] == "OVERALL"].iloc[0]
+    assert overall["status"] == "GO"
+
+
+def test_reference_package_readiness_table_criterion_vacuous_when_no_source_advertises_a_table(tmp_path, monkeypatch):
+    monkeypatch.setattr("scripts.audit_assignment_modalities.TABLES", tmp_path)
+    requirement_status = pd.DataFrame([
+        {"requirement": label, "status": "found"} for label in [
+            "Sustainability or responsibility policy", "Material/fabric composition",
+            "Size chart or measurement guidance", "Garment-care or wash guidance",
+            "Return/refund policy", "Supplier or manufacturing disclosure",
+            "Certification evidence or explicit certification status",
+        ]
+    ])
+    reference_assets = _reference_assets_df([
+        {"reference_id": "r1", "brand": "TALA", "reference_type": "sustainability_page", "reference_status": "collected", "evidence_strength": "strong", "has_tables": False},
+    ])
+    chunks = pd.DataFrame([{"chunk_id": "c1"}])
+    readiness = evaluate_reference_package_readiness(requirement_status, reference_assets, chunks, pd.DataFrame())
+    table_row = readiness[readiness["criterion"].str.contains("structured table")].iloc[0]
+    assert table_row["status"] == "MET"  # no source advertised a table, so vacuously satisfied

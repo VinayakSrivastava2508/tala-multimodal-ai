@@ -467,23 +467,120 @@ schemas:
 
   multimodal_reference_assets:
     description: >
-      Multimodal Reference Package manifest -- impact/responsibility reports,
-      certifications, material specs, sizing/fabric-care guidance, return
-      policies, brand visual guidance.
+      Multimodal Reference Package manifest (Day 2.6A) --
+      scripts/collect_reference_package.py,
+      data/interim/day2_6/multimodal_reference_assets.csv. One row per
+      discovered/fetched reference document: sustainability/impact pages,
+      certifications, material/product specs, size/care guides, policies,
+      supplier disclosures, brand style references. Superseded and replaced
+      the earlier (Day 2.5) narrower schema -- reference_status is the
+      authoritative field for whether a row counts as verified evidence.
     fields:
-      reference_id:            { dtype: str,  required: true }
-      brand:                    { dtype: str,  required: true }
-      document_type:            { dtype: str,  required: true,
-        values: [impact_report, certification, material_spec, sizing_guidance, fabric_care_guidance, return_policy, brand_visual_guidance, other] }
-      title:                    { dtype: str,  required: false }
-      source_url:              { dtype: str,  required: true }
-      local_path:              { dtype: str,  required: false }
-      rights_or_access_basis: { dtype: str,  required: true,
+      reference_id:              { dtype: str,  required: true }
+      brand:                      { dtype: str,  required: true }
+      reference_type:            { dtype: str,  required: true,
+        values: [impact_report, sustainability_page, certification, material_specification,
+                 product_specification, care_guide, size_guide, return_policy,
+                 quality_or_warranty_policy, supplier_disclosure, packaging_policy,
+                 emissions_disclosure, labour_or_ethics_policy, brand_style_reference, other] }
+      document_title:            { dtype: str,  required: false }
+      source_url:                { dtype: str,  required: true }
+      canonical_url:              { dtype: str,  required: false }
+      source_domain:              { dtype: str,  required: false }
+      publication_date:          { dtype: str,  required: false }
+      effective_date:            { dtype: str,  required: false }
+      retrieved_at:              { dtype: str,  required: true }
+      mime_type:                  { dtype: str,  required: false }
+      local_path:                { dtype: str,  required: false }
+      extracted_text:            { dtype: str,  required: false }
+      text_length:                { dtype: int,  required: false }
+      page_count:                  { dtype: int,  required: false }
+      has_tables:                  { dtype: bool, required: false, values: [true, false] }
+      has_images:                  { dtype: bool, required: false, values: [true, false] }
+      extraction_method:          { dtype: str,  required: false }
+      evidence_strength:        { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      rights_or_access_basis:  { dtype: str,  required: true,
         values: [official_direct_public_asset, open_license, group_owned, user_authorised, platform_metadata_only, unknown] }
-      retrieved_at:            { dtype: str,  required: true }
-      file_hash:                { dtype: str,  required: false }
-      evidence_strength:      { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
-      provenance_note:        { dtype: str,  required: false }
+      processing_status:          { dtype: str,  required: false,
+        values: [downloaded, failed, skipped] }
+      file_hash:                  { dtype: str,  required: false }
+      provenance_note:            { dtype: str,  required: false }
+      discovery_method:          { dtype: str,  required: false,
+        values: [existing_hydrated_source, common_slug_probe, sitemap, ddgs_discovery_then_direct_fetch] }
+      official_source:            { dtype: bool, required: false, values: [true, false] }
+      certification_authority:  { dtype: str,  required: false }
+      claim_relevance:            { dtype: str,  required: false }
+      reference_status:          { dtype: str,  required: true,
+        values: [collected, already_available, not_found, blocked, irrelevant, duplicate, extraction_failed] }
+      failure_reason:              { dtype: str,  required: false }
+
+  reference_document_chunks:
+    description: >
+      Section-aware chunks of processed Multimodal Reference Package documents
+      (src/reference_features.py, scripts/process_reference_package.py,
+      data/processed/reference_document_chunks.csv). No embeddings/vector store
+      here -- chunk construction with provenance only.
+    fields:
+      chunk_id:                    { dtype: str,  required: true }
+      reference_id:                { dtype: str,  required: true }
+      brand:                        { dtype: str,  required: true }
+      reference_type:              { dtype: str,  required: false }
+      document_title:              { dtype: str,  required: false }
+      section_title:                { dtype: str,  required: false }
+      page_number:                  { dtype: int,  required: false }
+      chunk_sequence:                { dtype: int,  required: true }
+      chunk_text:                    { dtype: str,  required: true }
+      token_or_word_count:          { dtype: int,  required: true }
+      numerical_claims:              { dtype: str,  required: false }
+      materials:                      { dtype: str,  required: false }
+      certifications:                { dtype: str,  required: false }
+      geography:                      { dtype: str,  required: false }
+      product_category:              { dtype: str,  required: false }
+      source_url:                    { dtype: str,  required: true }
+      evidence_strength:            { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      retrieved_at:                  { dtype: str,  required: false }
+      provenance_note:              { dtype: str,  required: false }
+
+  reference_tables:
+    description: >
+      Tables extracted from Multimodal Reference Package HTML documents
+      (src/reference_features.py::extract_html_tables,
+      data/processed/reference_tables.csv).
+    fields:
+      table_id:                            { dtype: str,  required: true }
+      reference_id:                        { dtype: str,  required: true }
+      page_number_or_section:              { dtype: str,  required: false }
+      table_type:                          { dtype: str,  required: true,
+        values: [size_chart, material_composition, emissions, supplier_list, certification, return_conditions, other] }
+      headers:                              { dtype: str,  required: false }
+      rows_or_normalised_text:            { dtype: str,  required: true }
+      units:                                { dtype: str,  required: false }
+      source_url:                          { dtype: str,  required: true }
+      extraction_method:                    { dtype: str,  required: false }
+      evidence_strength:                  { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      provenance_note:                      { dtype: str,  required: false }
+
+  reference_images:
+    description: >
+      Document images (excluding decorative icons/logos, retaining
+      certification badges) discovered in Multimodal Reference Package HTML
+      documents (src/reference_features.py::extract_html_images,
+      data/processed/reference_images.csv).
+    fields:
+      reference_image_id:          { dtype: str,  required: true }
+      reference_id:                { dtype: str,  required: true }
+      page_number_or_section:      { dtype: str,  required: false }
+      image_role:                  { dtype: str,  required: true,
+        values: [certification_badge, document_figure, other] }
+      local_path:                  { dtype: str,  required: false }
+      caption:                      { dtype: str,  required: false }
+      ocr_text:                    { dtype: str,  required: false }
+      width:                        { dtype: int,  required: false }
+      height:                      { dtype: int,  required: false }
+      file_hash:                    { dtype: str,  required: false }
+      source_url:                  { dtype: str,  required: true }
+      evidence_strength:          { dtype: str,  required: true,  values: [strong, medium, weak, unusable] }
+      provenance_note:            { dtype: str,  required: false }
 
   claim_multimodal_evidence_candidates:
     description: >

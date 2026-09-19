@@ -46,7 +46,9 @@ CREATOR_CORPUS_PATH = PROJECT_ROOT / "data" / "corpora" / "creator_strategy_corp
 IMAGE_ASSETS_PATH = PROJECT_ROOT / "data" / "interim" / "day2_5" / "image_assets.csv"
 VIDEO_ASSETS_PATH = PROJECT_ROOT / "data" / "interim" / "day2_5" / "video_assets.csv"
 VIDEO_LEVEL_FEATURES_PATH = PROJECT_ROOT / "data" / "processed" / "video_level_features.csv"
-REFERENCE_ASSETS_PATH = PROJECT_ROOT / "data" / "processed" / "multimodal_reference_assets.csv"
+REFERENCE_ASSETS_PATH = PROJECT_ROOT / "data" / "interim" / "day2_6" / "multimodal_reference_assets.csv"
+REFERENCE_CHUNKS_PATH = PROJECT_ROOT / "data" / "processed" / "reference_document_chunks.csv"
+CLAIM_REFERENCE_MATCHES_OUT = PROJECT_ROOT / "data" / "processed" / "claim_reference_matches.csv"
 VIDEO_EMBEDDINGS_DIR = PROJECT_ROOT / "data" / "processed" / "embeddings" / "video"
 OUT_PATH = PROJECT_ROOT / "data" / "processed" / "claim_multimodal_evidence_candidates.csv"
 
@@ -153,29 +155,104 @@ def load_video_embeddings(video_level: pd.DataFrame) -> dict[str, np.ndarray]:
     return embeddings
 
 
-REFERENCE_TOP_K = 2
+# Day 2.6A Part I: claim_category -> compatible reference_type(s). A generic
+# return policy cannot support a materials claim; a size guide cannot support
+# an emissions claim -- this gate is checked BEFORE any semantic similarity is
+# computed, so an irrelevant reference_type is never even in the candidate pool.
+CLAIM_CATEGORY_TO_REFERENCE_TYPES: dict[str, list[str]] = {
+    "materials": ["material_specification", "product_specification"],
+    "labour": ["labour_or_ethics_policy", "supplier_disclosure"],
+    "manufacturing": ["supplier_disclosure", "material_specification"],
+    "packaging": ["packaging_policy"],
+    "emissions": ["emissions_disclosure"],
+    "circularity": ["sustainability_page", "material_specification"],
+    # "other" and any unmapped category: no compatible reference_type is known
+    # to plausibly support it, so no semantic reference match is attempted --
+    # not gated open by default.
+}
+REFERENCE_SEMANTIC_THRESHOLD = 0.35
 
 
-def match_reference_evidence(claims: pd.DataFrame, reference_assets: pd.DataFrame) -> dict[str, list[str]]:
-    """Candidate reference-document matches, same brand only. The
-    multimodal_reference_assets schema carries no extracted body text (title +
-    document_type only), so there is no genuine semantic-similarity signal to
-    rank on -- ranking by evidence_strength (strong > medium > weak) is the
-    honest alternative to fabricating a similarity score. Returns {} entirely
-    while the Reference Package is unpopulated (current project state)."""
+def match_reference_evidence(
+    claims: pd.DataFrame, chunks: pd.DataFrame,
+) -> tuple[dict[str, list[str]], list[dict]]:
+    """Day 2.6A Part I hierarchical claim-reference matching. Returns
+    ({claim_id: [reference_id, ...]}, [match_detail_row, ...]).
+
+    Hierarchy, in order (first tier that produces a hit wins for a given claim):
+      1. exact product match       -- claim.product_name == chunk.product_category
+                                       (not populated on current claims/chunks; kept
+                                       for forward-compatibility, never fabricated).
+      2. exact claim category      -- claim_category has an unambiguous 1:1 reference_type
+                                       mapping AND a chunk of that type exists.
+      3. material/certification    -- a material/certification keyword extracted from the
+                                       claim text also appears in a chunk's materials/
+                                       certifications entity columns.
+      4. product-category match    -- as (1) but at category granularity (not populated;
+                                       kept for forward-compatibility).
+      5. category-gated semantic   -- best cosine-similarity chunk within the
+                                       CLAIM_CATEGORY_TO_REFERENCE_TYPES-gated pool, only if
+                                       similarity clears REFERENCE_SEMANTIC_THRESHOLD.
+    A claim whose category has no compatible reference_type (e.g. 'other') is never
+    matched -- there is no tier this claim can legitimately clear.
+    """
     matches: dict[str, list[str]] = {cid: [] for cid in claims["claim_id"]}
-    if reference_assets.empty:
-        return matches
-    strength_rank = {"strong": 0, "medium": 1, "weak": 2, "unusable": 3}
-    for brand, claim_group in claims.groupby("brand"):
-        brand_refs = reference_assets[reference_assets["brand"] == brand].copy()
-        if brand_refs.empty:
+    detail_rows: list[dict] = []
+    if chunks.empty:
+        return matches, detail_rows
+
+    from src.reference_features import extract_entities
+
+    for _, claim in claims.iterrows():
+        claim_id, brand, category = claim["claim_id"], claim["brand"], claim.get("claim_category", "")
+        brand_chunks = chunks[chunks["brand"] == brand]
+        if brand_chunks.empty:
             continue
-        brand_refs["_rank"] = brand_refs["evidence_strength"].map(strength_rank).fillna(9)
-        top = brand_refs.sort_values("_rank").head(REFERENCE_TOP_K)["reference_id"].tolist()
-        for claim_id in claim_group["claim_id"]:
-            matches[claim_id] = top
-    return matches
+
+        compatible_types = CLAIM_CATEGORY_TO_REFERENCE_TYPES.get(category, [])
+        if not compatible_types:
+            continue  # no plausible reference_type for this category -- never gated open
+
+        gated_pool = brand_chunks[brand_chunks["reference_type"].isin(compatible_types)]
+        if gated_pool.empty:
+            continue
+
+        # Tier 3: material/certification keyword overlap
+        claim_entities = extract_entities(str(claim["claim_text"]))
+        claim_keywords = set(claim_entities["materials"]) | set(claim_entities["certifications"])
+        best_row, best_method, best_score, best_explanation = None, "", 0.0, ""
+        if claim_keywords:
+            for _, chunk in gated_pool.iterrows():
+                chunk_keywords = set(str(chunk.get("materials", "")).split(";")) | set(str(chunk.get("certifications", "")).split(";"))
+                overlap = claim_keywords & chunk_keywords
+                if overlap:
+                    best_row, best_method, best_score = chunk, "material_or_certification_match", 1.0
+                    best_explanation = f"keyword overlap: {', '.join(sorted(overlap))}"
+                    break
+
+        # Tier 5: category-gated semantic match (only if tier 3 found nothing)
+        if best_row is None:
+            sims = compute_semantic_similarity([str(claim["claim_text"])], gated_pool["chunk_text"].tolist())[0]
+            best_idx = int(np.argmax(sims))
+            if sims[best_idx] >= REFERENCE_SEMANTIC_THRESHOLD:
+                best_row = gated_pool.iloc[best_idx]
+                best_method = "category_gated_semantic_match"
+                best_score = round(float(sims[best_idx]), 4)
+                best_explanation = (
+                    f"claim_category '{category}' compatible with reference_type "
+                    f"'{best_row['reference_type']}'; semantic similarity {best_score}"
+                )
+
+        if best_row is not None:
+            ref_id = best_row["reference_id"]
+            matches[claim_id] = [ref_id]
+            detail_rows.append({
+                "claim_id": claim_id, "reference_id": ref_id, "chunk_id": best_row.get("chunk_id", ""),
+                "match_method": best_method, "match_score": best_score, "category_gate_passed": True,
+                "match_explanation": best_explanation, "requires_human_validation": True,
+            })
+
+    return matches, detail_rows
 
 
 def match_visual_evidence(
@@ -226,9 +303,14 @@ def main() -> int:
           f"(video leads/thumbnails/titles excluded by construction)")
 
     reference_assets = _safe_read_csv(REFERENCE_ASSETS_PATH)
-    print(f"Reference evidence pool: {len(reference_assets)} rows "
-          f"({'none -- Multimodal Reference Package not yet populated, see docs/source_log_template.md' if reference_assets.empty else 'populated'})")
-    reference_matches = match_reference_evidence(claims, reference_assets)
+    reference_chunks = _safe_read_csv(REFERENCE_CHUNKS_PATH)
+    n_verified_ref = int(reference_assets["reference_status"].isin(["collected", "already_available"]).sum()) if not reference_assets.empty and "reference_status" in reference_assets.columns else 0
+    print(f"Reference evidence pool: {n_verified_ref} verified document(s), {len(reference_chunks)} chunk(s) "
+          f"({'none -- Multimodal Reference Package not yet populated' if n_verified_ref == 0 else 'populated'})")
+    reference_matches, reference_match_details = match_reference_evidence(claims, reference_chunks)
+    if reference_match_details:
+        pd.DataFrame(reference_match_details).to_csv(CLAIM_REFERENCE_MATCHES_OUT, index=False)
+        print(f"Saved: {CLAIM_REFERENCE_MATCHES_OUT.relative_to(PROJECT_ROOT)} ({len(reference_match_details)} claim-reference matches)")
 
     image_id_to_brand = dict(zip(image_assets.get("asset_id", []), image_assets.get("brand", [])))
     video_id_to_brand = dict(zip(video_assets.get("video_asset_id", []), video_assets.get("brand", [])))

@@ -135,33 +135,7 @@ def test_load_claims_filters_to_rag_usable_strong_or_medium(tmp_path, monkeypatc
 # exercised manually via `python scripts/build_claim_multimodal_candidates.py`
 # per docs/assignment_alignment_audit.md, not re-run in unit tests.
 
-# ── match_reference_evidence: brand isolation, evidence_strength ranking ──────
-
-def test_match_reference_evidence_empty_pool_returns_empty():
-    claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "x", "claim_category": "materials"}])
-    matches = mod.match_reference_evidence(claims, pd.DataFrame())
-    assert matches["c1"] == []
-
-
-def test_match_reference_evidence_only_matches_within_same_brand():
-    claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "x", "claim_category": "materials"}])
-    refs = pd.DataFrame([
-        {"reference_id": "r1", "brand": "Adanola", "evidence_strength": "strong"},
-    ])
-    matches = mod.match_reference_evidence(claims, refs)
-    assert matches["c1"] == []
-
-
-def test_match_reference_evidence_ranks_by_evidence_strength_and_caps_top_k():
-    claims = _claims_df([{"claim_id": "c1", "brand": "TALA", "claim_text": "x", "claim_category": "materials"}])
-    refs = pd.DataFrame([
-        {"reference_id": "r_weak", "brand": "TALA", "evidence_strength": "weak"},
-        {"reference_id": "r_strong", "brand": "TALA", "evidence_strength": "strong"},
-        {"reference_id": "r_medium", "brand": "TALA", "evidence_strength": "medium"},
-    ])
-    matches = mod.match_reference_evidence(claims, refs)
-    assert matches["c1"] == ["r_strong", "r_medium"]  # top-2, strongest first
-
+# ── match_reference_evidence hierarchy: see tests/test_claim_reference_matching.py ──
 
 # ── strength/missing-modality logic: text+reference bundle is not "unusable" ──
 

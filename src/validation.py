@@ -29,6 +29,9 @@ EXACT_FILENAME_SCHEMA: Dict[str, str] = {
     "video_level_features":            "video_level_features",
     "multimodal_reference_assets":    "multimodal_reference_assets",
     "claim_multimodal_evidence_candidates": "claim_multimodal_evidence_candidates",
+    "reference_document_chunks":      "reference_document_chunks",
+    "reference_tables":                "reference_tables",
+    "reference_images":                "reference_images",
 }
 
 # Legacy filename PREFIX inference for Day 1 files. Only consulted when no exact
@@ -47,6 +50,9 @@ FILENAME_TO_SCHEMA: Dict[str, str] = {
     "video_level_features":            "video_level_features",
     "multimodal_reference_assets":    "multimodal_reference_assets",
     "claim_multimodal_evidence_candidates": "claim_multimodal_evidence_candidates",
+    "reference_document_chunks":      "reference_document_chunks",
+    "reference_tables":                "reference_tables",
+    "reference_images":                "reference_images",
 }
 
 # Provenance fields every dataset must carry

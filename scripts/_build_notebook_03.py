@@ -45,13 +45,23 @@ PROCESSED = PROJECT_ROOT / "data" / "processed"
 INTERIM_DAY2_5 = PROJECT_ROOT / "data" / "interim" / "day2_5"
 TABLES = PROJECT_ROOT / "outputs" / "tables"
 
+INTERIM_DAY2_6 = PROJECT_ROOT / "data" / "interim" / "day2_6"
+
 image_assets = pd.read_csv(INTERIM_DAY2_5 / "image_assets.csv")
 video_assets = pd.read_csv(INTERIM_DAY2_5 / "video_assets.csv")
 video_frames = pd.read_csv(PROCESSED / "video_frame_features.csv")
 video_level = pd.read_csv(PROCESSED / "video_level_features.csv")
 claim_candidates = pd.read_csv(PROCESSED / "claim_multimodal_evidence_candidates.csv")
 modality_audit = pd.read_csv(TABLES / "assignment_modality_audit.csv")
-print("Loaded Day 2.5 outputs.")""")
+
+reference_assets = pd.read_csv(INTERIM_DAY2_6 / "multimodal_reference_assets.csv")
+reference_chunks = pd.read_csv(PROCESSED / "reference_document_chunks.csv")
+reference_tables_df = pd.read_csv(PROCESSED / "reference_tables.csv")
+reference_images_df = pd.read_csv(PROCESSED / "reference_images.csv")
+tala_requirement_status = pd.read_csv(TABLES / "day2_6_tala_requirement_status.csv")
+reference_package_readiness = pd.read_csv(TABLES / "day2_6_reference_package_readiness.csv")
+claim_reference_matches = pd.read_csv(PROCESSED / "claim_reference_matches.csv") if (PROCESSED / "claim_reference_matches.csv").exists() else pd.DataFrame()
+print("Loaded Day 2.5 + Day 2.6A outputs.")""")
 
 md("## 1. Image Package — official catalog images\n\nCollected directly from each brand's own public Shopify `products.json` endpoint (`scripts/collect_official_product_media.py`). No search-result thumbnails, no login/anti-bot bypass.")
 
@@ -168,11 +178,106 @@ or circularity claim. No image/video match is fabricated for those categories re
 similarity score. Video matching additionally draws from a pool of exactly one genuinely processed
 video, so a 0/37 video-match result reflects real evidence scarcity, not a broken matcher.""")
 
-md("## 5. Modality-gap findings — assignment modality audit")
+md("""## 5. Multimodal Reference Package (Day 2.6A)
+
+Sustainability/impact pages, certifications, material/product specs, size/care guides, policies,
+supplier disclosures, and brand style references for TALA (primary) and, for secondary
+benchmarking only, the three competitor brands. Pipeline entry point:
+`python scripts/run_day2_6a_reference_package.py`. Full narrative: `docs/assignment_alignment_audit.md`.""")
+
+md("### 5.1 Reference discovery funnel")
+
+code("""funnel = reference_assets.groupby(["discovery_method", "reference_status"]).size().reset_index(name="n_rows")
+display(funnel)
+print(f"\\nTotal rows attempted: {len(reference_assets)}")
+print(f"Verified (collected/already_available): {int(reference_assets['reference_status'].isin(['collected','already_available']).sum())}")
+print(f"Not found: {int((reference_assets['reference_status']=='not_found').sum())}, "
+      f"Blocked: {int((reference_assets['reference_status']=='blocked').sum())}, "
+      f"Duplicate: {int((reference_assets['reference_status']=='duplicate').sum())}, "
+      f"Extraction failed: {int((reference_assets['reference_status']=='extraction_failed').sum())}")""")
+
+md("### 5.2 TALA reference requirement coverage (13-item checklist)")
+
+code("""display(tala_requirement_status[["requirement", "status", "reference_type", "pages_checked", "discovery_method"]])
+n_found = int((tala_requirement_status["status"] == "found").sum())
+print(f"\\n{n_found}/{len(tala_requirement_status)} TALA requirements found. Not-found items are documented, never fabricated.")""")
+
+md("### 5.3 Reference type distribution")
+
+code("""reference_type_dist = pd.read_csv(TABLES / "day2_6_reference_type_distribution.csv")
+display(reference_type_dist)
+reference_coverage = pd.read_csv(TABLES / "day2_6_reference_coverage.csv")
+display(reference_coverage)""")
+
+md("### 5.4 Extracted document examples")
+
+code("""verified_refs = reference_assets[reference_assets["reference_status"].isin(["collected", "already_available"])]
+if not verified_refs.empty:
+    sample = verified_refs.sort_values("text_length", ascending=False).iloc[0]
+    print(f"{sample['reference_id']} ({sample['brand']}, {sample['reference_type']}) -- {sample['document_title']}")
+    print(f"Source: {sample['source_url']}")
+    print(f"Evidence strength: {sample['evidence_strength']}, text_length: {sample['text_length']}")
+    print(f"\\nExtract (first 600 chars):\\n{str(sample['extracted_text'])[:600]}")
+else:
+    print("No verified reference documents available.")""")
+
+md("### 5.5 Table extraction examples")
+
+code("""if not reference_tables_df.empty:
+    display(reference_tables_df[["table_id", "reference_id", "table_type", "headers", "source_url", "evidence_strength"]].head(5))
+else:
+    print("No structured tables were extracted from the currently collected reference documents.")""")
+
+md("### 5.6 Document-image examples")
+
+code("""if not reference_images_df.empty:
+    display(reference_images_df[["reference_image_id", "reference_id", "image_role", "caption", "source_url", "evidence_strength"]].head(5))
+else:
+    print("No qualifying (non-decorative) document images were extracted from the currently collected reference documents.")""")
+
+md("### 5.7 Claim-reference matching (Part I hierarchy)")
+
+code("""if not claim_reference_matches.empty:
+    display(claim_reference_matches[["claim_id", "reference_id", "match_method", "match_score",
+                                       "category_gate_passed", "match_explanation"]].head(10))
+    print(f"\\nTotal claim-reference matches: {len(claim_reference_matches)}")
+    print(claim_reference_matches["match_method"].value_counts().to_string())
+else:
+    print("No claim-reference matches yet -- see day2_6_tala_requirement_status.csv for what was searched.")""")
+
+md("""**Matching hierarchy** (first tier that clears wins): (1) exact product match, (2) exact claim
+category, (3) material/certification keyword overlap, (4) product-category match, (5)
+category-gated semantic match. A generic return policy can never support a materials claim, and a
+size guide can never support an emissions claim -- the category gate is checked BEFORE any
+similarity score is computed, so an incompatible reference_type is never even in the candidate
+pool. Every match is a **candidate**, not a supported/contradicted classification.""")
+
+md("### 5.8 Updated claim modality coverage")
+
+code("""claim_reference_coverage = pd.read_csv(TABLES / "day2_6_claim_reference_coverage.csv")
+display(claim_reference_coverage)
+
+bundle_summary_after = pd.read_csv(TABLES / "claim_evidence_bundle_summary.csv")
+display(bundle_summary_after.T.rename(columns={0: "count_after_reference_package"}))""")
+
+md("### 5.9 Reference Package GO/NO-GO")
+
+code("""display(reference_package_readiness)
+ref_overall = reference_package_readiness[reference_package_readiness["criterion"] == "OVERALL"].iloc[0]
+print(f"\\nReference Package: {ref_overall['status']}")
+print("A private internal TALA style guide is NOT required for GO -- its absence is documented as a limitation, never a blocker.")""")
+
+md("""### 5.10 Remaining video blocker (untouched by this task)
+
+Per the Day 2.6A scope, video collection/fusion/RAG are explicitly out of scope for this task --
+the Video Package/Pipeline verdicts from Notebook 03 §2/§3 are carried forward unchanged into the
+primary-fusion readiness check below.""")
+
+md("## 6. Modality-gap findings — assignment modality audit")
 
 code("""display(modality_audit)""")
 
-md("""## 6. Descriptive engagement — retained, never a modelling target
+md("""## 7. Descriptive engagement — retained, never a modelling target
 
 Engagement prediction is out of scope for the entire project (`CLAUDE.md` §9). The metrics below
 are retained strictly for descriptive, non-causal comparison (medians, IQRs, coverage) — see
@@ -182,7 +287,7 @@ Notebook 02 §9c for the full modelling-feasibility reclassification (tracks 4�
 code("""descriptive_engagement = pd.read_csv(TABLES / "descriptive_creator_engagement.csv")
 display(descriptive_engagement)""")
 
-md("""## 7. Primary claim-evidence fusion readiness (minimum defensible bar)
+md("""## 8. Primary claim-evidence fusion readiness (minimum defensible bar)
 
 Primary fusion does **not** require all 37 claims to carry every modality. Readiness is judged
 against a 7-criterion minimum bar
@@ -221,17 +326,21 @@ rather than retrieving all modalities uniformly for every query.
 Full narrative: `docs/assignment_alignment_audit.md`.""")
 
 code("""print("=" * 60)
-print("NOTEBOOK 03 COMPLETE -- Day 2.5 Video Pipeline and Multimodal Evidence")
+print("NOTEBOOK 03 COMPLETE -- Video Pipeline + Multimodal Reference Package (Day 2.5 + Day 2.6A)")
 print("=" * 60)
 print(f"  Verified official images:        {int((image_assets['processing_status']=='downloaded').sum())}")
 print(f"  Video leads (not processed):     {n_leads}")
 print(f"  Genuinely processed videos:      {n_processed}")
+print(f"  Verified reference documents:    {int(reference_assets['reference_status'].isin(['collected','already_available']).sum())}")
+print(f"  TALA requirements found:         {int((tala_requirement_status['status']=='found').sum())}/{len(tala_requirement_status)}")
+print(f"  Reference chunks/tables/images:  {len(reference_chunks)}/{len(reference_tables_df)}/{len(reference_images_df)}")
 print(f"  Claim bundles:                   {n_claims}")
 print(f"  Claims processed (>=1 modality): {n_ge1}/{n_claims}")
 print(f"  Claims with text+image+video:    {n_all3}/{n_claims}")
+print(f"  Reference Package:               {ref_overall['status']} (see \\u00a75.9)")
 overall = readiness[readiness["criterion"] == "OVERALL"].iloc[0]
-print(f"  Primary fusion:                  {overall['status']} (see \\u00a77)")
-print(f"  Multimodal RAG:                  NO-GO (see \\u00a77)")""")
+print(f"  Primary fusion:                  {overall['status']} (see \\u00a78)")
+print(f"  Multimodal RAG:                  NO-GO (see \\u00a78)")""")
 
 nb["cells"] = cells
 with open("notebooks/03_video_pipeline_and_multimodal_evidence.ipynb", "w", encoding="utf-8") as f:

@@ -52,5 +52,8 @@ feedparser>=6.0.0
 html5lib>=1.1
 python-dateutil>=2.8.0
 
+# PDF extraction (Day 2.6A reference documents) -- free, pure-Python, MIT licence
+pypdf>=4.0.0
+
 # Dev / testing
 pytest>=7.4.0

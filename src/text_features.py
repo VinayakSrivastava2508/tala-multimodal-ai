@@ -274,6 +274,22 @@ CONTENT_INTENT_CATEGORIES = (
 )
 
 
+_SENTENCE_MODEL_CACHE: dict = {}
+
+
+def _get_cached_sentence_model(model_name: str):
+    """Load a SentenceTransformer once per process and reuse it. Reloading per
+    call (the previous behaviour) re-hits the HuggingFace Hub for local-cache
+    validation on every call -- calling this in a per-claim loop (e.g. 37+
+    times in a single script run) was observed to intermittently fail with
+    httpx.ReadError / WinError 10054 (connection forcibly closed), not just be
+    slow. Caching eliminates both the redundant network calls and the flake."""
+    if model_name not in _SENTENCE_MODEL_CACHE:
+        from sentence_transformers import SentenceTransformer  # lazy import
+        _SENTENCE_MODEL_CACHE[model_name] = SentenceTransformer(model_name)
+    return _SENTENCE_MODEL_CACHE[model_name]
+
+
 def get_sentence_embeddings(
     texts: List[str],
     model_name: str = "all-MiniLM-L6-v2",
@@ -285,8 +301,7 @@ def get_sentence_embeddings(
     Returns an ndarray of shape (n_texts, embedding_dim).
     Downloads model from HuggingFace on first use (free, no API key needed).
     """
-    from sentence_transformers import SentenceTransformer  # lazy import
-    model = SentenceTransformer(model_name)
+    model = _get_cached_sentence_model(model_name)
     embeddings = model.encode(
         texts,
         batch_size=batch_size,
@@ -386,8 +401,8 @@ def compute_semantic_similarity(
 
     Returns ndarray of shape (n_queries, n_corpus).
     """
-    from sentence_transformers import SentenceTransformer, util  # lazy import
-    model = SentenceTransformer(model_name)
+    from sentence_transformers import util  # lazy import
+    model = _get_cached_sentence_model(model_name)
     query_emb = model.encode(query_texts, normalize_embeddings=True)
     corpus_emb = model.encode(corpus_texts, normalize_embeddings=True)
     return util.cos_sim(query_emb, corpus_emb).numpy()

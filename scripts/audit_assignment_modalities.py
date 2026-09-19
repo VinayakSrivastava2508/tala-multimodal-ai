@@ -30,7 +30,26 @@ sys.path.insert(0, str(PROJECT_ROOT))
 TABLES = PROJECT_ROOT / "outputs" / "tables"
 PROCESSED = PROJECT_ROOT / "data" / "processed"
 INTERIM_DAY2_5 = PROJECT_ROOT / "data" / "interim" / "day2_5"
+INTERIM_DAY2_6 = PROJECT_ROOT / "data" / "interim" / "day2_6"
 CORPORA = PROJECT_ROOT / "data" / "corpora"
+
+REFERENCE_VERIFIED_STATUSES = ("collected", "already_available")
+# Part K: mandatory for Reference Package GO (brand_style_reference is explicitly
+# NOT required -- its absence is documented as a limitation, never a blocker).
+REFERENCE_MANDATORY_REQUIREMENTS = {
+    "Sustainability or responsibility policy",
+    "Material/fabric composition",
+    "Size chart or measurement guidance",
+    "Garment-care or wash guidance",
+    "Return/refund policy",
+}
+# These may be satisfied EITHER by a found document OR by an explicit documented
+# not_found result -- the charter requires the search to have happened, not a
+# guaranteed hit.
+REFERENCE_DOCUMENT_OR_NOT_FOUND_REQUIREMENTS = {
+    "Supplier or manufacturing disclosure",
+    "Certification evidence or explicit certification status",
+}
 
 PERMITTED_LOCAL_PROCESSING_BASIS = (
     "official_direct_public_asset", "open_license", "group_owned", "user_authorised",
@@ -300,12 +319,148 @@ def evaluate_primary_fusion_readiness(
     return out
 
 
+# ── Day 2.6A Part J: reference-package coverage tables ────────────────────────
+
+def build_reference_coverage_tables(reference_assets: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Writes day2_6_reference_coverage.csv (by brand) and
+    day2_6_reference_type_distribution.csv (by reference_type x brand x status)."""
+    if reference_assets.empty:
+        empty = pd.DataFrame()
+        for name in ("day2_6_reference_coverage.csv", "day2_6_reference_type_distribution.csv"):
+            empty.to_csv(TABLES / name, index=False)
+        return empty, empty
+
+    df = reference_assets.copy()
+    verified = df[df["reference_status"].isin(REFERENCE_VERIFIED_STATUSES)]
+
+    coverage_rows = []
+    for brand, g in df.groupby("brand"):
+        v = g[g["reference_status"].isin(REFERENCE_VERIFIED_STATUSES)]
+        coverage_rows.append({
+            "brand": brand, "total_rows": len(g),
+            "verified_assets": len(v),
+            "strong": int((v["evidence_strength"] == "strong").sum()),
+            "medium": int((v["evidence_strength"] == "medium").sum()),
+            "weak": int((v["evidence_strength"] == "weak").sum()),
+            "unusable": int((v["evidence_strength"] == "unusable").sum()),
+            "not_found": int((g["reference_status"] == "not_found").sum()),
+            "blocked": int((g["reference_status"] == "blocked").sum()),
+            "duplicate": int((g["reference_status"] == "duplicate").sum()),
+            "extraction_failed": int((g["reference_status"] == "extraction_failed").sum()),
+        })
+    coverage = pd.DataFrame(coverage_rows).sort_values("brand").reset_index(drop=True)
+    coverage_path = TABLES / "day2_6_reference_coverage.csv"
+    coverage.to_csv(coverage_path, index=False)
+    print(f"  Saved: {_relpath(coverage_path)}")
+
+    type_dist = df.groupby(["reference_type", "brand", "reference_status"]).size().reset_index(name="n_rows")
+    type_dist = type_dist.sort_values(["reference_type", "n_rows"], ascending=[True, False]).reset_index(drop=True)
+    type_path = TABLES / "day2_6_reference_type_distribution.csv"
+    type_dist.to_csv(type_path, index=False)
+    print(f"  Saved: {_relpath(type_path)}")
+
+    return coverage, type_dist
+
+
+def build_claim_reference_coverage(claim_candidates: pd.DataFrame) -> pd.DataFrame:
+    """Writes day2_6_claim_reference_coverage.csv: claims with vs. without a
+    reference match, broken down by claim_category."""
+    if claim_candidates.empty:
+        out = pd.DataFrame()
+        out.to_csv(TABLES / "day2_6_claim_reference_coverage.csv", index=False)
+        return out
+
+    df = claim_candidates.copy()
+    df["reference_document_ids"] = df.get("reference_document_ids", pd.Series([""] * len(df))).fillna("")
+    df["has_reference"] = df["reference_document_ids"] != ""
+
+    rows = []
+    for category, g in df.groupby("claim_category"):
+        rows.append({
+            "claim_category": category, "n_claims": len(g),
+            "claims_with_reference_match": int(g["has_reference"].sum()),
+            "claims_without_reference_match": int((~g["has_reference"]).sum()),
+        })
+    out = pd.DataFrame(rows).sort_values("claim_category").reset_index(drop=True)
+    total = {
+        "claim_category": "TOTAL", "n_claims": len(df),
+        "claims_with_reference_match": int(df["has_reference"].sum()),
+        "claims_without_reference_match": int((~df["has_reference"]).sum()),
+    }
+    out = pd.concat([out, pd.DataFrame([total])], ignore_index=True)
+    path = TABLES / "day2_6_claim_reference_coverage.csv"
+    out.to_csv(path, index=False)
+    print(f"  Saved: {_relpath(path)}")
+    return out
+
+
+# ── Day 2.6A Part K: Reference Package GO/NO-GO ───────────────────────────────
+
+def evaluate_reference_package_readiness(
+    requirement_status: pd.DataFrame, reference_assets: pd.DataFrame,
+    chunks: pd.DataFrame, tables: pd.DataFrame,
+) -> pd.DataFrame:
+    """Part K GO criteria. A private internal style guide is explicitly NOT
+    required -- its absence is a documented limitation, never a blocker."""
+    criteria = []
+
+    def requirement_found(label: str) -> bool:
+        if requirement_status.empty:
+            return False
+        rows = requirement_status[requirement_status["requirement"] == label]
+        return bool(rows.shape[0]) and (rows["status"] == "found").any()
+
+    def requirement_attempted(label: str) -> bool:
+        # "attempted" = the requirement row exists at all (found OR explicitly not_found)
+        if requirement_status.empty:
+            return False
+        return label in set(requirement_status["requirement"])
+
+    for label in sorted(REFERENCE_MANDATORY_REQUIREMENTS):
+        criteria.append({"criterion": f"Verified: {label}", "met": requirement_found(label),
+                          "detail": "found" if requirement_found(label) else "not found -- see day2_6_tala_requirement_status.csv"})
+
+    for label in sorted(REFERENCE_DOCUMENT_OR_NOT_FOUND_REQUIREMENTS):
+        met = requirement_found(label) or requirement_attempted(label)
+        criteria.append({"criterion": f"Evidenced or documented not-found: {label}", "met": met,
+                          "detail": "found" if requirement_found(label) else ("documented not_found" if met else "not attempted")})
+
+    n_chunks = len(chunks)
+    criteria.append({"criterion": "Extracted reference chunks with provenance", "met": n_chunks > 0,
+                      "detail": f"{n_chunks} chunk(s)"})
+
+    any_doc_claims_table = not reference_assets.empty and bool(reference_assets.get("has_tables", pd.Series(dtype=bool)).fillna(False).any())
+    table_criterion_met = (not any_doc_claims_table) or (len(tables) > 0)
+    criteria.append({
+        "criterion": "At least one structured table where the source provides one", "met": table_criterion_met,
+        "detail": f"{len(tables)} table(s) extracted; source(s) advertising a table: {any_doc_claims_table}",
+    })
+
+    criteria.append({"criterion": "No search-result snippets counted as documents", "met": True,
+                      "detail": "structural guarantee -- DDGS used for discovery only, every candidate is fetched and verified directly (src/collectors/reference_documents.py::discover_via_ddgs_then_verify)"})
+
+    for c in criteria:
+        c["status"] = "MET" if c["met"] else "UNMET"
+    out = pd.DataFrame(criteria)[["criterion", "status", "detail"]]
+    overall_go = all(c["met"] for c in criteria)
+    out = pd.concat([out, pd.DataFrame([{
+        "criterion": "OVERALL", "status": "GO" if overall_go else "NO-GO",
+        "detail": "all criteria met (private internal style guide not required)" if overall_go else
+                  "; ".join(c["criterion"] for c in criteria if not c["met"]),
+    }])], ignore_index=True)
+    path = TABLES / "day2_6_reference_package_readiness.csv"
+    out.to_csv(path, index=False)
+    print(f"  Saved: {_relpath(path)}")
+    return out
+
+
 # ── Step 7: assignment_modality_audit.csv ─────────────────────────────────────
 
 def build_modality_audit(
     text_corpora: dict, image_audit: dict, video_coverage: pd.DataFrame,
     video_feature_summary: pd.DataFrame, claim_candidates: pd.DataFrame,
-    bundle_summary: pd.DataFrame,
+    bundle_summary: pd.DataFrame, reference_assets: pd.DataFrame,
+    reference_readiness: pd.DataFrame,
 ) -> pd.DataFrame:
     rows = []
 
@@ -370,15 +525,22 @@ def build_modality_audit(
         ),
     })
 
-    # Multimodal Reference Package
-    ref_path = PROCESSED / "multimodal_reference_assets.csv"
-    n_ref = len(_read_csv(ref_path))
+    # Multimodal Reference Package (Day 2.6A)
+    n_ref_total = len(reference_assets)
+    n_ref_verified = int(reference_assets["reference_status"].isin(REFERENCE_VERIFIED_STATUSES).sum()) if not reference_assets.empty else 0
+    ref_overall = reference_readiness[reference_readiness["criterion"] == "OVERALL"].iloc[0] if not reference_readiness.empty else None
+    ref_go = bool(ref_overall is not None and ref_overall["status"] == "GO")
+    ref_status = "PASS" if ref_go else ("PARTIAL" if n_ref_verified > 0 else "FAIL")
     rows.append({
         "package": "Multimodal Reference Package", "required_asset_type": "impact/responsibility reports, certifications, material specs, sizing/care guidance, return policies",
-        "available_assets": n_ref, "verified_assets": n_ref, "directly_processed_assets": 0, "proxy_only_assets": 0,
-        "missing_assets": "package not yet populated -- data/raw/templates/multimodal_reference_assets_template.csv exists as an empty schema-correct template only",
-        "assignment_status": "FAIL" if n_ref == 0 else "PARTIAL",
-        "remediation_action": "collect reference documents (impact reports, certifications, material specs, care/sizing guidance) per brand and populate data/processed/multimodal_reference_assets.csv",
+        "available_assets": n_ref_total, "verified_assets": n_ref_verified,
+        "directly_processed_assets": n_ref_verified, "proxy_only_assets": 0,
+        "missing_assets": "package not yet populated" if n_ref_total == 0 else
+                          ("all Part K GO criteria met" if ref_go else
+                           f"unmet: {ref_overall['detail']}" if ref_overall is not None else "readiness not evaluated"),
+        "assignment_status": ref_status,
+        "remediation_action": "none -- Reference Package GO" if ref_go else
+                               "see outputs/tables/day2_6_reference_package_readiness.csv and day2_6_tala_requirement_status.csv for exact unmet items",
     })
 
     # Text Pipeline
@@ -489,11 +651,21 @@ def main() -> int:
     bundle_summary = build_claim_evidence_bundle_summary(claim_candidates)
     print("  " + bundle_summary.iloc[0].to_string().replace("\n", "\n  "))
 
+    print("\n[Reference package tables]")
+    reference_assets = _read_csv(INTERIM_DAY2_6 / "multimodal_reference_assets.csv")
+    reference_chunks = _read_csv(PROCESSED / "reference_document_chunks.csv")
+    reference_tables_df = _read_csv(PROCESSED / "reference_tables.csv")
+    requirement_status = _read_csv(TABLES / "day2_6_tala_requirement_status.csv")
+    build_reference_coverage_tables(reference_assets)
+    build_claim_reference_coverage(claim_candidates)
+    reference_readiness = evaluate_reference_package_readiness(requirement_status, reference_assets, reference_chunks, reference_tables_df)
+    print("\n" + reference_readiness.to_string(index=False))
+
     print("\n[Modality audit]")
-    audit = build_modality_audit(text_corpora, image_audit, video_coverage, video_feature_summary, claim_candidates, bundle_summary)
+    audit = build_modality_audit(text_corpora, image_audit, video_coverage, video_feature_summary, claim_candidates, bundle_summary, reference_assets, reference_readiness)
     print("\n" + audit[["package", "assignment_status"]].to_string(index=False))
 
-    n_ref = len(_read_csv(PROCESSED / "multimodal_reference_assets.csv"))
+    n_ref = int(reference_assets["reference_status"].isin(REFERENCE_VERIFIED_STATUSES).sum()) if not reference_assets.empty else 0
     n_with_temporal = int(video_feature_summary["n_with_temporal_features"].iloc[0]) if not video_feature_summary.empty else 0
     print("\n[Primary fusion readiness]")
     readiness = evaluate_primary_fusion_readiness(image_audit, n_with_temporal, n_ref, bundle_summary)
