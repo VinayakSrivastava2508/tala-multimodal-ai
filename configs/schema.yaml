@@ -732,3 +732,294 @@ schemas:
       failure_reason:          { dtype: str,  required: false }
       method:                  { dtype: str,  required: true }
       generated_at:            { dtype: str,  required: true }
+
+  rag_collection_summary:
+    description: >
+      Day 3B: per-collection build summary from the ChromaDB index builder
+      (scripts/build_chroma_index.py, outputs/tables/rag_collection_summary.csv).
+    fields:
+      collection:                        { dtype: str, required: true,
+        values: [tala_claims, tala_text_evidence, tala_visual_evidence] }
+      n_final:                            { dtype: int, required: true }
+      n_upserted_this_run:                { dtype: int, required: true }
+      n_removed_stale_this_run:          { dtype: int, required: true }
+      n_missing_asset_rejected:          { dtype: int, required: false }
+      n_embed_failed_rejected:            { dtype: int, required: false }
+
+  rag_corpus_coverage:
+    description: >
+      Day 3B: per-collection coverage by brand/source_type/evidence_strength
+      (scripts/build_chroma_index.py, outputs/tables/rag_corpus_coverage.csv).
+    fields:
+      collection:  { dtype: str, required: true }
+      dimension:  { dtype: str, required: true, values: [brand, source_type, evidence_strength] }
+      value:        { dtype: str, required: true }
+      n_rows:      { dtype: int, required: true }
+
+  rag_modality_coverage:
+    description: >
+      Day 3B: per-collection row counts by modality
+      (scripts/build_chroma_index.py, outputs/tables/rag_modality_coverage.csv).
+    fields:
+      collection: { dtype: str, required: true }
+      modality:    { dtype: str, required: true }
+      n_rows:      { dtype: int, required: true }
+
+  rag_retrieval_evaluation:
+    description: >
+      Day 3B: automated retrieval evaluation -- collection integrity, metadata
+      completeness, missing-asset rate, direct-link recall@k/MRR
+      (scripts/run_multimodal_rag_evaluation.py,
+      outputs/tables/rag_retrieval_evaluation.csv). Heterogeneous metric rows
+      by design (metric_group distinguishes the evaluation method).
+    fields:
+      metric_group: { dtype: str, required: false }
+      collection:    { dtype: str, required: false }
+      metric:        { dtype: str, required: false }
+      value:          { dtype: float, required: false }
+
+  rag_query_routing_evaluation:
+    description: >
+      Day 3B: per-claim modality-routing correctness against the authoritative
+      Day 3A visual-groundability rule
+      (scripts/run_multimodal_rag_evaluation.py,
+      outputs/tables/rag_query_routing_evaluation.csv).
+    fields:
+      claim_id:                          { dtype: str,  required: true }
+      claim_category:                    { dtype: str,  required: true }
+      expected_visually_groundable:      { dtype: bool, required: true, values: [true, false] }
+      actual_routed_visual:              { dtype: bool, required: true, values: [true, false] }
+      routing_correct:                    { dtype: bool, required: true, values: [true, false] }
+
+  rag_citation_validation:
+    description: >
+      Day 3B: automated citation-validation results for the live Gemini demo
+      cases (scripts/run_multimodal_rag_evaluation.py,
+      outputs/tables/rag_citation_validation.csv). No human-coder review.
+    fields:
+      demo_case:  { dtype: str,  required: true }
+      claim_id:    { dtype: str,  required: false }
+      passed:      { dtype: bool, required: true, values: [true, false] }
+      failures:    { dtype: str,  required: false }
+
+  rag_latency_summary:
+    description: >
+      Day 3B: retrieval/end-to-end latency by pipeline stage
+      (scripts/run_multimodal_rag_evaluation.py,
+      outputs/tables/rag_latency_summary.csv).
+    fields:
+      stage:            { dtype: str,  required: true }
+      latency_seconds: { dtype: float, required: true, min: 0.0 }
+
+  rag_demo_cases:
+    description: >
+      Day 3B: outcome of the required demonstration cases (text+image+video
+      claim, mixed-claim explanation, insufficient-evidence explanation)
+      (scripts/run_multimodal_rag_evaluation.py,
+      outputs/tables/rag_demo_cases.csv). Records the real API outcome
+      (including quota/availability failures) -- never fabricated.
+    fields:
+      demo_case:  { dtype: str,  required: true }
+      claim_id:    { dtype: str,  required: false }
+      outcome:    { dtype: str,  required: true }
+      api_outcome: { dtype: str, required: false }
+
+  rag_go_no_go:
+    description: >
+      Day 3B: final acceptance-gate GO/NO-GO/PARTIAL determination
+      (scripts/run_multimodal_rag_evaluation.py,
+      outputs/tables/rag_go_no_go.csv). A genuine failure is reported as
+      NO-GO or PARTIAL, never weakened to force a GO.
+    fields:
+      gate:      { dtype: str, required: true }
+      status:    { dtype: str, required: true, values: [GO, "NO-GO", PARTIAL, NOT_ATTEMPTED] }
+
+  # ── Day 3C: executive analytical synthesis + creator-strategy comparison ──
+  # scripts/build_analytical_synthesis.py, scripts/build_creator_strategy_comparison.py,
+  # scripts/build_strategic_interpretation.py, scripts/build_executive_findings.py.
+  # All read-only over existing verified Day 2/3A/3B outputs -- no new collection,
+  # no external API calls, descriptive only (see docs/project_charter.md).
+
+  analytical_synthesis_claim_master:
+    description: >
+      Authoritative claim-level synthesis covering all 37 TALA claims, joining
+      Day 3A fusion labels to evidence-unit counts by modality and role.
+    fields:
+      claim_id:                 { dtype: str,  required: true }
+      claim_text:                { dtype: str,  required: true }
+      claim_category:            { dtype: str,  required: true }
+      official_source_id:        { dtype: str,  required: true }
+      production_fusion_label:  { dtype: str,  required: true, values: [aligned, partially_aligned, mixed, divergent, insufficient_evidence] }
+      fusion_confidence:        { dtype: float, required: true, min: 0.0, max: 1.0 }
+      evidence_unit_count:      { dtype: int,   required: true, min: 0 }
+
+  claim_label_summary:
+    description: >
+      Overall/category/confidence/restriction distribution of the 37 claim
+      fusion labels, with zero-count classes retained explicitly.
+    fields:
+      automated_label: { dtype: str, required: true }
+      n_claims:         { dtype: int, required: true, min: 0 }
+      section:          { dtype: str, required: true }
+
+  mixed_claim_deep_dive:
+    description: >
+      Per-claim narrative deep dive for every production claim labelled mixed.
+      theme_id (added by the acceptance patch) links each of the 5 claim
+      records to its row in mixed_claim_theme_summary.
+    fields:
+      claim_id:              { dtype: str, required: true }
+      exact_official_claim:  { dtype: str, required: true }
+      claim_category:        { dtype: str, required: true }
+      theme_id:                { dtype: str, required: true, values: [theme_01, theme_02] }
+
+  mixed_claim_theme_summary:
+    description: >
+      Consolidates the 5 mixed claim RECORDS into their underlying strategic
+      THEMES (deterministic text-match grouping, no LLM). Does not alter the
+      authoritative Day 3A claim-level fusion labels.
+    fields:
+      theme_id:            { dtype: str, required: true }
+      theme_name:            { dtype: str, required: true }
+      claim_record_count:  { dtype: int,  required: true, min: 1 }
+      claim_ids:            { dtype: str, required: true }
+
+  aligned_claim_examples:
+    description: >
+      Two-to-four decision-relevant aligned claims selected by transparent
+      criteria (supporting_evidence_count>=2, label stable across weighting).
+    fields:
+      claim_id:            { dtype: str, required: true }
+      claim_text:           { dtype: str, required: true }
+      selection_criteria:  { dtype: str, required: true }
+
+  insufficient_evidence_analysis:
+    description: >
+      Gap classification for every claim labelled insufficient_evidence.
+    fields:
+      claim_id:         { dtype: str, required: true }
+      claim_category:   { dtype: str, required: true }
+      reason_code:      { dtype: int, required: true, values: [1, 2, 3, 4, 5] }
+      reason_label:      { dtype: str, required: true }
+
+  modality_contribution_summary:
+    description: >
+      Text-only vs. text+image vs. text+image+video vs. full-modality fusion
+      configuration comparison, plus evidence-unit counts by modality.
+    fields:
+      section: { dtype: str, required: true }
+
+  evidence_gap_by_category:
+    description: >
+      Per claim-category summary of independent/customer/image/video/reference
+      evidence coverage and the dominant missing evidence type.
+    fields:
+      claim_category: { dtype: str, required: true }
+      total_claims:    { dtype: int, required: true, min: 0 }
+
+  creator_strategy_evidence_coverage:
+    description: >
+      Verified creator/official-platform record counts and coverage
+      limitations for TALA, Adanola, Girlfriend Collective, Oner Active.
+    fields:
+      brand:                      { dtype: str, required: true, values: [TALA, Adanola, "Girlfriend Collective", "Oner Active"] }
+      verified_creator_records:  { dtype: int, required: true, min: 0 }
+      analysis_prohibited:       { dtype: str, required: true }
+
+  creator_partnership_mix:
+    description: >
+      Count and within-brand percentage for each evidence-gated partnership
+      type, per brand, with the brand denominator retained.
+    fields:
+      brand:              { dtype: str,   required: true, values: [TALA, Adanola, "Girlfriend Collective", "Oner Active"] }
+      partnership_type:    { dtype: str,   required: true }
+      count:               { dtype: int,   required: true, min: 0 }
+      pct_within_brand:    { dtype: float, required: true, min: 0.0 }
+      brand_denominator_n: { dtype: int,   required: true, min: 0 }
+
+  creator_content_intent_mix:
+    description: >
+      Count and within-brand percentage for each classified content-intent
+      category, per brand, retaining zero-count categories.
+    fields:
+      brand:              { dtype: str,   required: true, values: [TALA, Adanola, "Girlfriend Collective", "Oner Active"] }
+      content_intent:      { dtype: str,   required: true }
+      count:               { dtype: int,   required: true, min: 0 }
+      brand_denominator_n: { dtype: int,   required: true, min: 0 }
+
+  creator_partnership_intent_matrix:
+    description: >
+      Partnership-type x content-intent matrix at overall / by-brand /
+      non-organic-only / non-organic-by-brand scopes.
+    fields:
+      scope:            { dtype: str, required: true }
+      brand:             { dtype: str, required: true }
+      partnership_type: { dtype: str, required: true }
+      content_intent:    { dtype: str, required: true }
+      count:             { dtype: int, required: true, min: 0 }
+
+  brand_platform_strategy_comparison:
+    description: >
+      Observed platform role (creator-led vs brand-led, product-demo,
+      responsibility, commerce) per brand per verified platform.
+    fields:
+      brand:    { dtype: str, required: true, values: [TALA, Adanola, "Girlfriend Collective", "Oner Active"] }
+      platform: { dtype: str, required: true }
+
+  creator_strategic_pattern_metrics:
+    description: >
+      Descriptive concentration (HHI) and share metrics per brand; no
+      significance testing on this targeted, non-random corpus.
+    fields:
+      brand: { dtype: str, required: true, values: [TALA, Adanola, "Girlfriend Collective", "Oner Active"] }
+      n:      { dtype: int, required: true, min: 0 }
+
+  creator_strategy_interpretation:
+    description: >
+      Per-brand strategic pattern, split into observed_finding /
+      interpretation / hypothesis rows (never merged into one claim).
+    fields:
+      brand:      { dtype: str, required: true, values: [TALA, Adanola, "Girlfriend Collective", "Oner Active"] }
+      level:      { dtype: str, required: true, values: [observed_finding, interpretation, hypothesis] }
+      statement:  { dtype: str, required: true }
+
+  tala_competitor_lessons:
+    description: >
+      Competitor practices TALA could preserve/test/avoid-copying, each tied
+      to a supporting record count and evidence IDs.
+    fields:
+      lesson_id:                       { dtype: str, required: true }
+      comparator_brand:                { dtype: str, required: true }
+      observed_competitor_practice:    { dtype: str, required: true }
+      supporting_record_count:        { dtype: int,  required: true, min: 0 }
+      lesson_category:                  { dtype: str, required: true, values: [preserve, test, avoid_copying_without_validation, evidence_gap] }
+
+  creator_moat_hypotheses:
+    description: >
+      Moat hypotheses meeting all 5 criteria in the task brief. status is
+      never "proven moat" -- only plausible/weak/unsupported/contradicted.
+    fields:
+      hypothesis_id:            { dtype: str, required: true }
+      brand:                     { dtype: str, required: true, values: [TALA, Adanola, "Girlfriend Collective", "Oner Active"] }
+      verified_evidence_count:  { dtype: int,  required: true, min: 0 }
+      status:                    { dtype: str, required: true, values: [plausible, weak, unsupported, contradicted] }
+
+  professor_feedback_response:
+    description: >
+      Evidence-controlled answers to the professor's six creator-strategy
+      questions, each tied to an evidence_basis table.
+    fields:
+      question_id: { dtype: str, required: true }
+      question:     { dtype: str, required: true }
+      answer:       { dtype: str, required: true }
+      evidence_basis: { dtype: str, required: true }
+
+  executive_finding_register:
+    description: >
+      ~8-12 prioritised, deck-ready executive findings spanning both the
+      claim-experience and creator-strategy analytical streams.
+    fields:
+      finding_id:          { dtype: str, required: true }
+      analytical_stream:  { dtype: str, required: true, values: ["claim–experience divergence", "modality contribution", "evidence gaps", "creator strategy", "competitor learning", "moat hypothesis"] }
+      finding:              { dtype: str, required: true }
+      observed_or_inferred: { dtype: str, required: true, values: [observed, hypothesis, inferred] }

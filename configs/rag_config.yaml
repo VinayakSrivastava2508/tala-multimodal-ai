@@ -1,0 +1,39 @@
+# Day 3B: multimodal RAG configuration. All retrieval/ranking thresholds live
+# here so they are inspectable and never hardcoded inside the pipeline code.
+
+chroma:
+  persist_dir: data/vector_db/chroma
+  collections:
+    claims: tala_claims
+    text_evidence: tala_text_evidence
+    visual_evidence: tala_visual_evidence
+  distance_metric: cosine
+
+embeddings:
+  text_model: all-MiniLM-L6-v2
+  text_dim: 384
+  clip_model: openai/clip-vit-base-patch32
+  clip_dim: 512
+
+retrieval:
+  default_n_results: 10
+  max_n_results: 25
+  source_diversity_cap: 4     # max results from any one source_type before extras are excluded
+
+rank_fusion:
+  method: reciprocal_rank_fusion
+  rrf_k: 60
+  direct_link_bonus: 1.0
+  evidence_strength_weight: {strong: 1.0, medium: 0.7, weak: 0.4, unusable: 0.0}
+  source_independence_weight: {independent: 1.0, customer_reported: 0.85, self_reported: 0.5, unclear: 0.4}
+
+evidence_gates:
+  eligible_evidence_strengths: [strong, medium]
+
+gemini:
+  api_key_env: GEMINI_API_KEY
+  model_env: GEMINI_MODEL
+  max_evidence_items_in_prompt: 10
+
+citation_validation:
+  confidence_threshold_for_high_confidence_scope: 0.6

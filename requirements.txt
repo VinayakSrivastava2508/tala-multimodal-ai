@@ -30,9 +30,15 @@ nltk>=3.8.0
 textblob>=0.17.0
 sentence-transformers>=2.2.0
 
-# Vector store (pick one; both listed for flexibility)
+# Vector store -- Day 3B: ChromaDB is the ONLY vector database used in
+# production (data/vector_db/chroma/). faiss-cpu is retained only because it
+# was listed pre-Day-3B; it is not used by the RAG pipeline.
 faiss-cpu>=1.7.4
-chromadb>=0.4.0
+chromadb==1.5.9
+
+# Day 3B: multimodal RAG (Gemini generation, Streamlit UI)
+google-genai==2.24.0
+streamlit==1.64.0
 
 # Image / vision
 Pillow>=10.0.0

@@ -338,6 +338,24 @@ This is now fixed with a two-tier lookup in `guess_schema()`:
 
 See `docs/day2_evidence_hydration_audit.md` for the before/after validation results.
 
+## Day 3C Output Tables
+
+The 19 Day 3C analytical-synthesis and creator-strategy-comparison output tables
+(`outputs/tables/analytical_synthesis_claim_master.csv` through
+`outputs/tables/executive_finding_register.csv`, plus
+`outputs/tables/mixed_claim_theme_summary.csv`) are schema-routed in
+`configs/schema.yaml` / `src/validation.py::EXACT_FILENAME_SCHEMA` and validated
+directly by `scripts/validate_synthesis_outputs.py` (run separately from
+`scripts/validate_data.py`, which only scans `data/raw`, `data/interim`, and
+`data/corpora`, not `outputs/`).
+
+`mixed_claim_theme_summary.csv` consolidates the 5 mixed claim records
+(`claim_id` level, from `mixed_claim_deep_dive.csv`) into their 2 underlying
+strategic themes via a deterministic exact-text-match rule
+(`scripts/build_mixed_claim_themes.py`) — never an LLM call, and never a change
+to the authoritative Day 3A `claim_fusion_results.csv` labels. `theme_id` on
+`mixed_claim_deep_dive.csv` links each record to its theme row.
+
 ## Naming Conventions
 
 - **IDs:** `{type_prefix}_{brand_slug}_{platform_slug}_{sequence}` — e.g. `rev_tala_tp_001`
