@@ -66,6 +66,19 @@ EXACT_FILENAME_SCHEMA: Dict[str, str] = {
     "creator_moat_hypotheses":              "creator_moat_hypotheses",
     "professor_feedback_response":          "professor_feedback_response",
     "executive_finding_register":            "executive_finding_register",
+    # Day 3D: AI governance, ethics and ESG framework
+    "ai_governance_risk_register":            "ai_governance_risk_register",
+    "ai_governance_control_matrix":          "ai_governance_control_matrix",
+    "claim_decision_policy":                  "claim_decision_policy",
+    "ai_governance_raci":                      "ai_governance_raci",
+    "ai_data_lifecycle_policy":                "ai_data_lifecycle_policy",
+    "esg_claim_assurance_matrix":              "esg_claim_assurance_matrix",
+    "regulatory_standards_map":                "regulatory_standards_map",
+    "genai_vendor_control_matrix":              "genai_vendor_control_matrix",
+    "ai_governance_kpi_kri":                    "ai_governance_kpi_kri",
+    "ai_incident_escalation_matrix":            "ai_incident_escalation_matrix",
+    "ai_governance_implementation_roadmap":    "ai_governance_implementation_roadmap",
+    "ai_governance_go_no_go":                    "ai_governance_go_no_go",
 }
 
 # Legacy filename PREFIX inference for Day 1 files. Only consulted when no exact

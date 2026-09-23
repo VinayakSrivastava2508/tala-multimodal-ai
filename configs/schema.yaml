@@ -1023,3 +1023,142 @@ schemas:
       analytical_stream:  { dtype: str, required: true, values: ["claim–experience divergence", "modality contribution", "evidence gaps", "creator strategy", "competitor learning", "moat hypothesis"] }
       finding:              { dtype: str, required: true }
       observed_or_inferred: { dtype: str, required: true, values: [observed, hypothesis, inferred] }
+
+  # ── Day 3D: AI governance, ethics and ESG framework ──────────────────────
+  # scripts/build_governance_framework.py. Read-only over existing verified
+  # Day 3A/3C outputs plus hand-curated, source-cited governance content
+  # (verified 22 September 2026) -- no new data collection, no external API
+  # calls, no change to any analytical result.
+
+  ai_governance_risk_register:
+    description: >
+      5x5 (likelihood x impact) risk register covering privacy, media rights,
+      evidence quality, creator/customer ethics, GenAI vendor, and security
+      risk domains. Scores are structured management judgements, not
+      empirical probabilities.
+    fields:
+      risk_id:                 { dtype: str,  required: true }
+      risk_domain:              { dtype: str,  required: true }
+      likelihood_1_5:            { dtype: int,  required: true, min: 1, max: 5 }
+      impact_1_5:                { dtype: int,  required: true, min: 1, max: 5 }
+      inherent_risk_score:      { dtype: int,  required: true, min: 1, max: 25 }
+      inherent_risk_level:      { dtype: str,  required: true, values: [Low, Medium, High, Critical] }
+      control_status:            { dtype: str,  required: true, values: [Implemented, "Partially implemented", Proposed, "Not applicable"] }
+      residual_risk_level:      { dtype: str,  required: true, values: [Low, Medium, High, Critical] }
+      risk_owner:                { dtype: str,  required: true }
+
+  ai_governance_control_matrix:
+    description: >
+      Preventive/detective/corrective controls mapped to governance layers
+      (data admission, modality processing, fusion, retrieval/generation,
+      managerial use) and to risk_ids in ai_governance_risk_register.
+    fields:
+      control_id:        { dtype: str, required: true }
+      governance_layer:  { dtype: str, required: true }
+      control_type:      { dtype: str, required: true, values: [Preventive, Detective, Corrective] }
+      control_status:    { dtype: str, required: true, values: [Implemented, "Partially implemented", Proposed, "Not applicable"] }
+      control_owner:      { dtype: str, required: true }
+
+  claim_decision_policy:
+    description: >
+      Permitted management use, required reviewer, and recommended/prohibited
+      wording for each fusion label (aligned/partially_aligned/mixed/
+      divergent/insufficient_evidence).
+    fields:
+      decision_label:   { dtype: str, required: true, values: [aligned, partially_aligned, mixed, divergent, insufficient_evidence] }
+      meaning:           { dtype: str, required: true }
+      what_it_does_not_mean: { dtype: str, required: true }
+      required_reviewer: { dtype: str, required: true }
+
+  ai_governance_raci:
+    description: >
+      RACI matrix (one column per role) across governance activities; every
+      activity has exactly one Accountable ('A') role.
+    fields:
+      activity_id: { dtype: str, required: true }
+      activity:     { dtype: str, required: true }
+
+  ai_data_lifecycle_policy:
+    description: >
+      Data-involved, minimisation, access, retention and deletion rules for
+      every lifecycle stage from discovery through deletion.
+    fields:
+      lifecycle_stage:            { dtype: str, required: true }
+      personal_data_risk:          { dtype: str, required: true }
+      existing_or_proposed_status: { dtype: str, required: true }
+
+  esg_claim_assurance_matrix:
+    description: >
+      Acceptable/ineligible evidence types, substantiation thresholds, and
+      current TALA evidence status per ESG-relevant claim category.
+    fields:
+      claim_category:                { dtype: str, required: true }
+      acceptable_official_evidence:  { dtype: str, required: true }
+      current_evidence_gap:          { dtype: str, required: true }
+
+  regulatory_standards_map:
+    description: >
+      Regulatory/standards requirements relevant to this system, each with an
+      official source URL (or TBC), verified 22 September 2026. Voluntary
+      standards are never labelled mandatory.
+    fields:
+      requirement_id:      { dtype: str,  required: true }
+      authority:             { dtype: str,  required: true }
+      mandatory_status:      { dtype: str,  required: true }
+      official_url:          { dtype: str,  required: true }
+      access_date:            { dtype: str,  required: true }
+      legal_review_required: { dtype: bool, required: true }
+
+  genai_vendor_control_matrix:
+    description: >
+      Gemini API vendor controls; documents that there is no fallback model
+      and that the correct failure behaviour is to stop generation and show
+      a clear error.
+    fields:
+      control_area:        { dtype: str, required: true }
+      control_description: { dtype: str, required: true }
+      status:                { dtype: str, required: true }
+
+  ai_governance_kpi_kri:
+    description: >
+      Monitoring indicators with formula, target/warning/breach thresholds,
+      and owner. current_value is computed from repository outputs where
+      feasible and 'TBC' elsewhere -- never fabricated.
+    fields:
+      kpi_kri:        { dtype: str, required: true }
+      definition:      { dtype: str, required: true }
+      formula:          { dtype: str, required: true }
+      current_value:    { dtype: str, required: true }
+      owner:            { dtype: str, required: true }
+
+  ai_incident_escalation_matrix:
+    description: >
+      Incident scenarios with severity, containment, ownership and target
+      response time.
+    fields:
+      incident_scenario:    { dtype: str, required: true }
+      severity:              { dtype: str, required: true, values: [Low, Medium, High, Critical] }
+      notification_owner:    { dtype: str, required: true }
+      target_response_time: { dtype: str, required: true }
+
+  ai_governance_implementation_roadmap:
+    description: >
+      Four-phase roadmap (academic prototype; 0-30 day pilot; 31-90 day
+      limited deployment; 3-6 month scaled deployment); every item has a
+      completion_criterion.
+    fields:
+      phase:                { dtype: str, required: true }
+      initiative:            { dtype: str, required: true }
+      deliverable:            { dtype: str, required: true }
+      owner:                  { dtype: str, required: true }
+      completion_criterion:  { dtype: str, required: true }
+
+  ai_governance_go_no_go:
+    description: >
+      Deployment-readiness gates assessed separately for academic
+      demonstration, controlled internal pilot, and external/customer-facing
+      deployment. Outcomes are evidence-based, not preassigned.
+    fields:
+      gate:              { dtype: str, required: true }
+      deployment_context: { dtype: str, required: true, values: [academic_demonstration_readiness, controlled_internal_pilot_readiness, external_customer_facing_deployment_readiness] }
+      status:              { dtype: str, required: true, values: [GO, PARTIAL, "NO-GO"] }
