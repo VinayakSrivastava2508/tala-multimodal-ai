@@ -128,6 +128,18 @@ jupyter lab
 scoring task (not yet built — gated on `03_video_pipeline_and_multimodal_evidence.ipynb`'s
 evidence candidates).
 
+## Executive Decision Cockpit (Streamlit app)
+
+A six-page executive Streamlit app sits on top of the validated Day 3 outputs and the
+multimodal RAG pipeline: Executive Overview, Claim Diagnostic, Creator Strategy,
+Multimodal RAG, Governance & Roadmap, Methodology & Limitations.
+
+```bash
+streamlit run app\streamlit_app.py
+```
+
+Full usage guide: `docs/executive_cockpit_user_guide.md`.
+
 ## Setup
 
 ```bash

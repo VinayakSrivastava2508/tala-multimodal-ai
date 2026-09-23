@@ -1,0 +1,18 @@
+# Explicit light theme for the Executive Decision Cockpit.
+#
+# Root cause this fixes: with no [theme] section, Streamlit auto-selects its
+# base theme to match the viewer's OS/browser `prefers-color-scheme`. On a
+# dark-mode client this serves Streamlit's dark theme (body background
+# rgb(14,17,23), heading/caption/sidebar text near-white rgb(250,250,250)).
+# app/styling.py's injected CSS only overrides the outer .stApp background to
+# the light palette -- it never touches native text-color variables -- so a
+# dark-mode viewer got near-white text on a near-white background (contrast
+# ratio ~1:1), which read as "dimmed". Declaring the theme explicitly here
+# makes every native Streamlit element (headings, captions, sidebar, metrics,
+# inputs, dataframes) use the light palette regardless of client preference.
+[theme]
+base = "light"
+primaryColor = "#E4572E"
+backgroundColor = "#F6F8FB"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1B2A4A"

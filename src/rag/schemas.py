@@ -73,3 +73,63 @@ def text_evidence_id_for(source_type: str, raw_id: str) -> str:
 
 def visual_evidence_id_for(modality: str, raw_id: str) -> str:
     return f"visual::{modality}::{raw_id}"
+
+
+# ── Evidence provenance (Executive Cockpit Acceptance Patch, Part D) ───────────
+#
+# Two explicit, separate concepts instead of one ambiguous combined label:
+#   source_origin        -- who published/produced the evidence
+#   independence_status  -- whether it corroborates the brand's own claim
+#
+# official_claim(s), official_video and official_product_image are always
+# "Brand official" + "Self-reported" -- unconditionally, regardless of any
+# join-derived flags -- because by construction they cannot corroborate
+# TALA's own claims independently.
+_BRAND_OFFICIAL_UNCONDITIONAL = frozenset({
+    "official_claim", "official_claims", "official_video", "official_product_image",
+})
+# official_reference is "Brand official" + "Self-reported" *unless* a
+# genuinely independent underlying source is explicitly verified in the
+# evidence-unit join data, per Part D's stated exception for this one type.
+_BRAND_OFFICIAL_WITH_INDEPENDENCE_EXCEPTION = frozenset({"official_reference"})
+_SOURCE_ORIGIN_MAP = {
+    "customer_experience": "Customer",
+    "creator_strategy": "Creator",
+    "press_reddit_sources": "Press/third party",
+    "press": "Press/third party",
+    "third_party": "Press/third party",
+    "certification": "Certification/assurance source",
+    "assurance": "Certification/assurance source",
+    "ngo_assessment": "Certification/assurance source",
+}
+
+
+def classify_evidence_provenance(source_type: str, self_reported: bool, independent_source: bool) -> tuple[str, str]:
+    """Returns (source_origin, independence_status) for one evidence record.
+
+    source_origin in {"Brand official", "Customer", "Creator",
+    "Press/third party", "Certification/assurance source", "Other"}.
+    independence_status in {"Self-reported", "Independent",
+    "Not independently verified", "Unknown"}.
+
+    Brand-published source types are always Brand official + Self-reported.
+    For everything else, independence is read from the existing verified
+    self_reported/independent_source flags -- never inferred from keywords,
+    and never defaulted to "Independent" just because the source isn't the
+    brand itself.
+    """
+    if not source_type:
+        return "Other", "Unknown"
+    if source_type in _BRAND_OFFICIAL_UNCONDITIONAL:
+        return "Brand official", "Self-reported"
+    if source_type in _BRAND_OFFICIAL_WITH_INDEPENDENCE_EXCEPTION:
+        return "Brand official", ("Independent" if independent_source else "Self-reported")
+
+    origin = _SOURCE_ORIGIN_MAP.get(source_type, "Other")
+    if independent_source:
+        independence = "Independent"
+    elif self_reported:
+        independence = "Self-reported"
+    else:
+        independence = "Not independently verified"
+    return origin, independence

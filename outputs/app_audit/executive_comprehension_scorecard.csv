@@ -1,0 +1,7 @@
+Page,Discoverability,Plain-language clarity,Output interpretability,Business relevance,Actionability,Trust/evidence transparency,Visual hierarchy,Navigation consistency,Accessibility,Error recovery,Overall score,Primary issue
+Executive Overview,4,3,4,5,4,4,4,5,4,4,4.1,"Dimming defect fixed (contrast confirmed via computed style); terminology still not glossed inline on this page itself, only via the Methodology glossary and Claim Diagnostic tooltips"
+Claim Diagnostic,4,4,4,5,4,5,4,5,3,5,4.3,"Weight-sensitive/presentation-restriction/production-label/independent-evidence terms now have inline help= tooltips on first use; remaining gap is a dedicated keyboard-navigation pass, not yet performed"
+Creator Strategy,5,5,5,4,4,5,4,5,3,4,4.4,"Strongest page in the app -- exact-wording compliance with spec, clear boundary notice, no causal-language leaks; keyboard-navigation pass still not performed"
+Multimodal RAG,4,4,4,5,4,5,3,5,3,5,4.2,"Trace-toggle state loss and evidence-provenance mislabelling both fixed and re-verified live; remaining gap is a dedicated keyboard-navigation/viewport pass"
+Governance & Roadmap,4,4,4,5,5,4,4,5,3,4,4.2,"Expander discoverability fixed with instruction captions and default-expansion of the mixed policy row and current phase; keyboard-navigation pass still not performed"
+Methodology & Limitations,5,5,4,4,4,4,4,5,3,4,4.2,"Comprehensive and now includes a 'Key terms used in this cockpit' glossary, cross-reinforced by matching inline tooltips on Claim Diagnostic; keyboard-navigation pass still not performed"

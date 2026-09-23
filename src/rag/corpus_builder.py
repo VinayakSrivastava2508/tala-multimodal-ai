@@ -14,8 +14,8 @@ import numpy as np
 import pandas as pd
 
 from src.rag.schemas import (
-    ELIGIBLE_EVIDENCE_STRENGTHS, PROJECT_ROOT, claim_id_for, sha256_file, sha256_text,
-    text_evidence_id_for, visual_evidence_id_for,
+    ELIGIBLE_EVIDENCE_STRENGTHS, PROJECT_ROOT, claim_id_for, classify_evidence_provenance,
+    sha256_file, sha256_text, text_evidence_id_for, visual_evidence_id_for,
 )
 
 DATA = PROJECT_ROOT / "data"
@@ -135,6 +135,20 @@ def _corpus_text_records(path: Path, corpus_source_type: str, evidence_units: pd
         stances = link.get("stances", [])
         source_independences = link.get("source_independences", [])
         text = str(r["extracted_text"])
+        # official_claims is brand-published by construction: it is always
+        # self-reported, independent of whether a claim-evidence-unit join
+        # produced any source_independence value (join_modality=None here, so
+        # it never does) -- see Part D of the Executive Cockpit Acceptance
+        # Patch. customer_experience/creator_strategy keep using the real,
+        # verified join-derived flags rather than any inferred default.
+        if corpus_source_type == "official_claims":
+            self_reported, independent_source = True, False
+        else:
+            self_reported = "self_reported" in source_independences
+            independent_source = "independent" in source_independences
+        source_origin, independence_status = classify_evidence_provenance(
+            corpus_source_type, self_reported, independent_source
+        )
         metadata = {
             "evidence_id": doc_id, "document_id": doc_id, "claim_id": _join_field(claim_ids),
             "brand": str(r["brand"]), "modality": "text", "source_type": corpus_source_type,
@@ -145,8 +159,10 @@ def _corpus_text_records(path: Path, corpus_source_type: str, evidence_units: pd
             "creator_handle": "", "evidence_strength": str(r["evidence_strength"]),
             "stance": _join_field(stances) or "unlinked", "support_or_challenge": _join_field(stances) or "unlinked",
             "source_independence": _join_field(source_independences),
-            "self_reported": "self_reported" in source_independences,
-            "independent_source": "independent" in source_independences,
+            "self_reported": self_reported,
+            "independent_source": independent_source,
+            "source_origin": source_origin,
+            "independence_status": independence_status,
             "verified": True, "rights_basis": "official_direct_public_asset" if corpus_source_type == "official_claims" else "user_authorised",
             "citation_text": text[:400], "product": "", "claim_category": "",
             "timestamp": "" if pd.isna(r.get("retrieved_at")) else str(r["retrieved_at"]), "temporal_role": "",
@@ -176,6 +192,11 @@ def _reference_chunk_records(evidence_units: pd.DataFrame) -> List[dict]:
         stances = link.get("stances", [])
         source_independences = link.get("source_independences", []) or ["self_reported"]
         text = str(r["chunk_text"])
+        ref_self_reported = "self_reported" in source_independences
+        ref_independent = "independent" in source_independences
+        source_origin, independence_status = classify_evidence_provenance(
+            "official_reference", ref_self_reported, ref_independent
+        )
         metadata = {
             "evidence_id": chunk_id, "document_id": str(r["reference_id"]), "claim_id": _join_field(claim_ids),
             "brand": str(r["brand"]), "modality": "text", "source_type": "official_reference",
@@ -184,8 +205,10 @@ def _reference_chunk_records(evidence_units: pd.DataFrame) -> List[dict]:
             "publication_date": "", "creator_handle": "", "evidence_strength": str(r["evidence_strength"]),
             "stance": _join_field(stances) or "unlinked", "support_or_challenge": _join_field(stances) or "unlinked",
             "source_independence": _join_field(source_independences),
-            "self_reported": "self_reported" in source_independences,
-            "independent_source": "independent" in source_independences,
+            "self_reported": ref_self_reported,
+            "independent_source": ref_independent,
+            "source_origin": source_origin,
+            "independence_status": independence_status,
             "verified": True, "rights_basis": "official_direct_public_asset",
             "citation_text": text[:400], "product": "" if pd.isna(r.get("product_category")) else str(r["product_category"]),
             "claim_category": str(r.get("reference_type", "")), "timestamp": "" if pd.isna(r.get("retrieved_at")) else str(r["retrieved_at"]),
@@ -225,6 +248,7 @@ def _video_summary_records(evidence_units: pd.DataFrame) -> List[dict]:
         role = roles.get(video_id, "")
         link = links.get(video_id, {})
         text = _video_summary_text(r, role)
+        source_origin, independence_status = classify_evidence_provenance("official_video", True, False)
         metadata = {
             "evidence_id": video_id, "document_id": video_id, "claim_id": _join_field(link.get("claim_ids", [])),
             "brand": "TALA", "modality": "video_summary", "source_type": "official_video",
@@ -233,7 +257,9 @@ def _video_summary_records(evidence_units: pd.DataFrame) -> List[dict]:
             "stance": _join_field(link.get("stances", [])) or "unlinked",
             "support_or_challenge": _join_field(link.get("stances", [])) or "unlinked",
             "source_independence": _join_field(link.get("source_independences", [])) or "self_reported",
-            "self_reported": True, "independent_source": False, "verified": True,
+            "self_reported": True, "independent_source": False,
+            "source_origin": source_origin, "independence_status": independence_status,
+            "verified": True,
             "rights_basis": "official_direct_public_asset", "citation_text": text[:400],
             "product": "", "claim_category": "", "timestamp": "", "temporal_role": str(role),
         }
@@ -276,6 +302,7 @@ def build_visual_evidence_records() -> List[dict]:
                 continue  # Part 6 gate: never index a missing asset
             asset_id = str(r["asset_id"])
             link = image_links.get(asset_id, {})
+            img_origin, img_independence = classify_evidence_provenance("official_product_image", True, False)
             records.append({
                 "id": visual_evidence_id_for("image", asset_id), "document": None,
                 "local_path": str(PROJECT_ROOT / local_path), "modality": "image",
@@ -292,6 +319,8 @@ def build_visual_evidence_records() -> List[dict]:
                     "height": int(r["height"]) if pd.notna(r.get("height")) else -1,
                     "claim_category": "", "visually_groundable": True,
                     "support_or_challenge": _join_field(link.get("stances", [])) or "unlinked",
+                    "self_reported": True, "independent_source": False,
+                    "source_origin": img_origin, "independence_status": img_independence,
                 },
             })
 
@@ -315,6 +344,7 @@ def build_visual_evidence_records() -> List[dict]:
             video_id = str(r["video_asset_id"])
             frame_id = str(r["frame_id"])
             link = video_links.get(video_id, {})
+            frame_origin, frame_independence = classify_evidence_provenance("official_video", True, False)
             records.append({
                 "id": visual_evidence_id_for("video_frame", frame_id), "document": None,
                 "local_path": str(PROJECT_ROOT / local_path), "modality": "video_frame",
@@ -330,6 +360,8 @@ def build_visual_evidence_records() -> List[dict]:
                     "perceptual_hash": str(r.get("perceptual_hash", "")),
                     "width": -1, "height": -1, "claim_category": "", "visually_groundable": True,
                     "support_or_challenge": _join_field(link.get("stances", [])) or "unlinked",
+                    "self_reported": True, "independent_source": False,
+                    "source_origin": frame_origin, "independence_status": frame_independence,
                 },
             })
 
