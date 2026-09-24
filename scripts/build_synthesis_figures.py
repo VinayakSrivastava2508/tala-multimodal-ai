@@ -182,18 +182,47 @@ def fig_competitor_strategy_heatmap():
     save(fig, "tala_competitor_strategy_heatmap.png")
 
 
+def fig_mixed_claim_themes():
+    """Supporting vs. challenging evidence per consolidated mixed-claim theme
+    -- built for the submission deck handoff (no prior figure covered
+    mixed_claim_theme_summary.csv)."""
+    df = pd.read_csv(TABLES_DIR / "mixed_claim_theme_summary.csv")
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    y = np.arange(len(df))
+    height = 0.35
+    ax.barh(y + height / 2, df["supporting_evidence_count"], height=height, color="#2E7D32", label="supporting evidence units")
+    ax.barh(y - height / 2, df["challenging_evidence_count"], height=height, color="#C62828", label="challenging evidence units")
+    wrapped_labels = [
+        f"{row.theme_name}\n({row.claim_record_count} claim record(s))"
+        for row in df.itertuples()
+    ]
+    ax.set_yticks(y)
+    ax.set_yticklabels(wrapped_labels, fontsize=9)
+    for yi, sup, chal in zip(y, df["supporting_evidence_count"], df["challenging_evidence_count"]):
+        ax.text(sup + 0.1, yi + height / 2, str(sup), va="center", fontsize=9)
+        ax.text(chal + 0.1, yi - height / 2, str(chal), va="center", fontsize=9)
+    ax.set_xlabel("Number of evidence units")
+    ax.set_title(
+        f"Mixed-claim themes: {int(df['claim_record_count'].sum())} claim records consolidate into "
+        f"{len(df)} genuine tensions\nSource: mixed_claim_theme_summary.csv"
+    )
+    ax.legend(loc="lower right")
+    save(fig, "mixed_claim_theme_evidence.png")
+
+
 def main():
     fig_claim_label_distribution()
     fig_claim_category_heatmap()
     fig_claim_modality_coverage()
     fig_modality_confidence_contribution()
     fig_evidence_gap_by_category()
+    fig_mixed_claim_themes()
     fig_creator_partnership_mix_by_brand()
     fig_creator_intent_mix_by_brand()
     fig_nonorganic_partnership_intent_matrix()
     fig_brand_platform_strategy_matrix()
     fig_competitor_strategy_heatmap()
-    print("All 10 synthesis figures written.")
+    print("All 11 synthesis figures written.")
 
 
 if __name__ == "__main__":

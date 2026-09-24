@@ -1,0 +1,85 @@
+flowchart TD
+    subgraph SRC["Public sources"]
+        S1["Official TALA / competitor pages<br/>News RSS, search, YouTube, Trustpilot, press"]
+    end
+
+    subgraph COLLECT["Collection & hydration"]
+        C1["src/collectors/*<br/>gentle HTTP, rate-limited, no bypass"]
+        C2["Hydration & dedup<br/>src/collectors/hydration.py"]
+    end
+
+    subgraph MODALITY["Modality-specific processing"]
+        M1["Text features<br/>src/text_features.py<br/>embeddings, TF-IDF, sentiment, NLI"]
+        M2["Image features<br/>src/image_features.py<br/>CLIP, palette, no face/PC inference"]
+        M3["Video/frame features<br/>src/video_features.py<br/>sampled frames, motion, CLIP"]
+        M4["Reference documents<br/>src/reference_features.py<br/>reports, certs, policies"]
+    end
+
+    subgraph CORPORA["Verified corpora"]
+        V1["official_claims_corpus.csv (37)"]
+        V2["customer_experience_corpus.csv (95)"]
+        V3["creator_strategy_corpus.csv (61)"]
+        V4["Reference / image / video tables"]
+    end
+
+    subgraph MATCH["Claim-evidence matching"]
+        MA1["src/fusion/*_evidence.py<br/>relevance scoring, visual-groundability gate"]
+    end
+
+    subgraph FUSION["Controlled fusion"]
+        F1["src/fusion_models.py<br/>early / late / hybrid<br/>claim <-> evidence integration ONLY<br/>NOT engagement prediction"]
+        F2["Sensitivity & NLI diagnostics<br/>src/fusion/nli_diagnostics.py"]
+    end
+
+    subgraph RAGSYS["Chroma indexing & retrieval"]
+        R1["RAG corpus builder<br/>src/rag/corpus_builder.py"]
+        R2["ChromaDB<br/>tala_claims (37) / tala_text_evidence (662) / tala_visual_evidence (76)"]
+        R3["Query router<br/>src/rag/query_router.py<br/>deterministic, no LLM routing"]
+        R4["Retriever<br/>src/rag/retriever.py"]
+        R5["Rank fusion (RRF)<br/>src/rag/rank_fusion.py"]
+    end
+
+    subgraph GEN["Gemini explanation"]
+        G1["src/rag/gemini_generator.py<br/>no fallback / no local-LLM substitute"]
+    end
+
+    subgraph VALID["Citation validation"]
+        CV1["src/rag/citation_validator.py<br/>5 checks incl. label-preservation"]
+    end
+
+    subgraph APP["Executive Cockpit"]
+        A1["Streamlit app/<br/>6 pages, 40/40 audit PASS"]
+    end
+
+    S1 --> C1 --> C2 --> M1 & M2 & M3 & M4
+    M1 --> V1 & V2 & V3
+    M2 --> V4
+    M3 --> V4
+    M4 --> V4
+    V1 & V2 & V3 & V4 --> MA1
+    MA1 --> F1 --> F2
+    F2 --> R1 --> R2
+    R2 --> R3 --> R4 --> R5 --> G1 --> CV1 --> A1
+    F2 -.claim master table.-> A1
+    R2 -.direct evidence cards.-> A1
+
+    %% Cross-cutting controls
+    GOV["Governance controls<br/>risk register, control matrix<br/>13 gates x 3 deployment contexts<br/>scripts/build_governance_framework.py"]
+    PRIV["Privacy / security guardrails<br/>.env excluded, no PII stored,<br/>no external API outside Gemini path"]
+    PROV["Provenance & human review<br/>source_origin, independence_status,<br/>presentation_restriction, claim_decision_policy.csv"]
+
+    GOV -.governs.-> COLLECT
+    GOV -.governs.-> FUSION
+    GOV -.governs.-> RAGSYS
+    GOV -.governs.-> GEN
+    GOV -.governs.-> APP
+    PRIV -.constrains.-> COLLECT
+    PRIV -.constrains.-> MODALITY
+    PRIV -.constrains.-> GEN
+    PROV -.tags every record in.-> CORPORA
+    PROV -.tags every record in.-> RAGSYS
+    PROV -.required before external use.-> APP
+
+    style GOV fill:#fff3cd,stroke:#856404
+    style PRIV fill:#f8d7da,stroke:#721c24
+    style PROV fill:#d1ecf1,stroke:#0c5460

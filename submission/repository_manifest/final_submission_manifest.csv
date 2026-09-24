@@ -1,0 +1,27 @@
+file_or_directory,deliverable,purpose,included,size_bytes,sensitive_data_check,notes
+app/,"Data, Code Repository and Notebooks",Streamlit executive cockpit (6 pages),Yes,171690,"Clean -- no secrets, reads only local tables/Chroma",Includes .streamlit/config.toml theme fix
+configs/,"Data, Code Repository and Notebooks","schema.yaml, fusion_rules.yaml -- no hardcoded brand/field names",Yes,90795,Clean,
+docs/,"Data, Code Repository and Notebooks","Audit trails, methodology, governance, project charter",Yes,202931,Clean,
+notebooks/ (7 canonical notebooks only),"Data, Code Repository and Notebooks","Executed analytical sequence, Day 1 through Day 3D",Yes,4515315,"Clean -- checked for API keys, none found","2 unexecuted scaffold stubs excluded, see excluded_notebooks_note.md"
+scripts/,"Data, Code Repository and Notebooks",One script per pipeline stage (collect/clean/fuse/build/validate),Yes,1222227,Clean -- test-enforced no .env/external-API access outside Gemini path,
+src/,"Data, Code Repository and Notebooks","Reusable modules: collectors, fusion, rag, image/video/text features",Yes,873043,Clean,
+tests/,"Data, Code Repository and Notebooks","pytest suite, 636 tests, 0 failures at freeze",Yes,1381600,Clean,
+data/raw/,"Data, Code Repository and Notebooks",Original collected candidate CSVs + manual-review templates,Yes,210896,Usernames stripped from review data per Data Ethics Rules,
+data/interim/,"Data, Code Repository and Notebooks",Cleaned/patched/hydrated intermediate datasets,Yes,2226278,Clean,
+data/processed/,"Data, Code Repository and Notebooks","Feature tables, fusion inputs/outputs, embeddings metadata",Yes,1901664,Clean,
+data/corpora/,"Data, Code Repository and Notebooks","3 verified RAG corpora (official_claims, customer_experience, creator_strategy)",Yes,351235,Clean,
+data/media/,"Data, Code Repository and Notebooks (Image/Video Package)","Official product images, official videos, sampled video frames, creator-post media",Yes,156211778,No PII; rights_or_access_basis-gated; largest single component of the ZIP,"Required to verify the genuine Video Package claim (8 processed videos, 52 sampled frames)"
+data/vector_db/,"Data, Code Repository and Notebooks","Persisted ChromaDB index (3 collections, 775 total records)",Yes,15721101,"Clean -- local, non-networked index; no embedded secrets",Lets the RAG page work out of the box without rebuilding the index
+data/cache/,n/a -- build artifact,Content-hash-keyed HTTP/embedding cache (460 small JSON files),No,850418,n/a,"Excluded: unnecessary, regenerable model/HTTP cache per exclusion list"
+data/manual_labels/,"Data, Code Repository and Notebooks",Human-effort manual label scaffolding (tracked by .gitignore design),Yes,213375,Clean,
+outputs/tables/,"Data, Code Repository and Notebooks","All analysis CSVs (synthesis, fusion, governance, RAG evaluation)",Yes,613188,Clean,
+outputs/figures/,"Data, Code Repository and Notebooks","All presentation-ready PNG charts, including 2 new ones built for this handoff",Yes,2996884,Clean,
+README.md,"Data, Code Repository and Notebooks",Original project README,Yes,8062,Clean,
+SUBMISSION_README.md,"Data, Code Repository and Notebooks",This handoff's reproduction/navigation guide,Yes,7935,"Clean -- env var names only, no values",
+requirements.txt,"Data, Code Repository and Notebooks",Pinned/minimum-version Python dependencies,Yes,1266,Clean,
+CLAUDE.md,"Data, Code Repository and Notebooks",Binding project charter / AI-assistant rules referenced throughout,Yes,9743,Clean,
+.env,n/a -- secret,"Local API keys (GEMINI_API_KEY, APIFY_TOKEN, YOUTUBE_API_KEY, etc.)",No,312,"CONTAINS SECRETS -- never read, copied, or displayed by this task",Explicitly excluded per PROJECT BOUNDARIES
+.venv/,n/a -- local environment,Python virtual environment,No,,n/a,Excluded per exclusion list; recreate via requirements.txt
+.git/,n/a -- version control,Git history,No,,n/a,"Excluded -- ZIP is a working-tree snapshot, not a git archive (most of data/ and outputs/ are git-ignored in this repo, see .gitignore, so a git archive of HEAD would omit them entirely)"
+"__pycache__/, .pytest_cache/, *.pyc",n/a -- build artifact,Python bytecode / test caches,No,,n/a,Excluded per exclusion list
+".streamlit/ (secrets, if any)",n/a -- local config,Streamlit local session/browser state,"No (config.toml only, included via app/)",,Checked -- no secrets.toml present,

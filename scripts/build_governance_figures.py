@@ -175,6 +175,50 @@ def fig_roadmap():
     save(fig, "ai_governance_implementation_roadmap.png")
 
 
+def fig_deployment_readiness():
+    """Gate x deployment-context readiness matrix -- built for the submission
+    deck handoff (no prior figure covered ai_governance_go_no_go.csv)."""
+    df = pd.read_csv(TABLES_DIR / "ai_governance_go_no_go.csv")
+    context_order = [
+        "academic_demonstration_readiness",
+        "controlled_internal_pilot_readiness",
+        "external_customer_facing_deployment_readiness",
+    ]
+    context_labels = ["Academic\ndemonstration", "Controlled internal\npilot", "External customer-\nfacing deployment"]
+    gates = list(dict.fromkeys(df["gate"]))  # preserve first-seen order, de-duplicated
+    status_code = {"GO": 2, "PARTIAL": 1, "NO-GO": 0}
+    status_color = {"GO": "#2E7D32", "PARTIAL": "#F9A825", "NO-GO": "#C62828"}
+
+    grid = np.zeros((len(gates), len(context_order)))
+    labels = np.empty((len(gates), len(context_order)), dtype=object)
+    for i, gate in enumerate(gates):
+        for j, ctx in enumerate(context_order):
+            row = df[(df["gate"] == gate) & (df["deployment_context"] == ctx)]
+            status = row["status"].iloc[0] if not row.empty else "NO-GO"
+            grid[i, j] = status_code[status]
+            labels[i, j] = status
+
+    fig, ax = plt.subplots(figsize=(8, 9))
+    cmap = matplotlib.colors.ListedColormap([status_color["NO-GO"], status_color["PARTIAL"], status_color["GO"]])
+    ax.imshow(grid, cmap=cmap, vmin=-0.5, vmax=2.5, aspect="auto")
+    for i in range(len(gates)):
+        for j in range(len(context_order)):
+            ax.text(j, i, labels[i, j], ha="center", va="center", fontsize=8.5,
+                     color="white", fontweight="bold")
+    ax.set_xticks(range(len(context_order)))
+    ax.set_xticklabels(context_labels, fontsize=9)
+    ax.set_yticks(range(len(gates)))
+    ax.set_yticklabels(gates, fontsize=9)
+    ax.set_title(
+        "Governance deployment-readiness verdict by gate and context\n"
+        "13/13 gates GO for academic use, PARTIAL for internal pilot, NO-GO for external use\n"
+        "Source: ai_governance_go_no_go.csv",
+        fontsize=10,
+    )
+    fig.tight_layout()
+    save(fig, "ai_governance_deployment_readiness_matrix.png")
+
+
 def main():
     fig_operating_model()
     fig_risk_heatmap()
@@ -182,7 +226,8 @@ def main():
     fig_control_map()
     fig_esg_matrix()
     fig_roadmap()
-    print("All 6 governance figures written.")
+    fig_deployment_readiness()
+    print("All 7 governance figures written.")
 
 
 if __name__ == "__main__":

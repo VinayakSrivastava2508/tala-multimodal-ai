@@ -68,3 +68,6 @@ chroma_db/
 # Logs
 *.log
 logs/
+
+# Submission bundle — exceeds GitHub's 100MB file limit, keep local-only
+submission/Group10_Code_Data_Notebooks.zip
